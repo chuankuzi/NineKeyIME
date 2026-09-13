@@ -1,0 +1,832 @@
+<Window x:Class="NineKey.Keyboard.Views.KeyboardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:NineKey.Keyboard.Views"
+        Title="NineKey 九宫格输入法"
+        Width="480"
+        Height="337"
+        SizeToContent="Manual"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize">
+        <Window.Resources>
+                <Style x:Key="MiniButtonStyle"
+                                TargetType="Button">
+                        <Setter Property="Focusable"
+                                        Value="False"/>
+                        <Setter Property="Background"
+                                        Value="Transparent"/>
+                        <Setter Property="Foreground"
+                                        Value="#CCFFFFFF"/>
+                        <Setter Property="BorderThickness"
+                                        Value="0"/>
+                        <Setter Property="FontSize"
+                                        Value="12"/>
+                        <Setter Property="Padding"
+                                        Value="6,1"/>
+                        <Setter Property="Template">
+                                <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                                <Border x:Name="BtnRoot"
+                                                                Background="{TemplateBinding Background}"
+                                                                CornerRadius="5"
+                                                                Padding="{TemplateBinding Padding}"
+                                                        RenderTransformOrigin="0.5,0.5">
+                                                        <Border.RenderTransform>
+                                                                <ScaleTransform ScaleX="1"
+                                                                                ScaleY="1"/>
+                                                        </Border.RenderTransform>
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                        VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver"
+                                                                        Value="True">
+                                                                <Setter Property="Background"
+                                                                                Value="#44FFFFFF"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed"
+                                                                        Value="True">
+                                                                <Setter TargetName="BtnRoot"
+                                                                                Property="RenderTransform">
+                                                                        <Setter.Value>
+                                                                                <ScaleTransform ScaleX="0.95"
+                                                                                                ScaleY="0.95"/>
+                                                                        </Setter.Value>
+                                                                </Setter>
+                                                        </Trigger>
+                                                </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                </Setter.Value>
+                        </Setter>
+                </Style>
+             
+                <Style x:Key="OpButtonStyle"
+                                TargetType="Button">
+                        <Setter Property="Focusable"
+                                        Value="False"/>
+                        <Setter Property="Background"
+                                        Value="#FF3A3A3D"/>
+                        <Setter Property="Foreground"
+                                        Value="#FFFFFFFF"/>
+                        <Setter Property="BorderBrush"
+                                        Value="#66FFFFFF"/>
+                        <Setter Property="BorderThickness"
+                                        Value="1"/>
+                        <Setter Property="FontSize"
+                                        Value="14"/>
+                        <Setter Property="Margin"
+                                        Value="2"/>
+                        <Setter Property="Template">
+                                <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                                <Border x:Name="KeyRoot"
+                                                                Background="{TemplateBinding Background}"
+                                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                                CornerRadius="10"
+                                                        Padding="{TemplateBinding Padding}"
+                                                        RenderTransformOrigin="0.5,0.5">
+                                                        <Border.RenderTransform>
+                                                                <ScaleTransform ScaleX="1"
+                                                                                ScaleY="1"/>
+                                                        </Border.RenderTransform>
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                        VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver"
+                                                                        Value="True">
+                                                                <Setter Property="Background"
+                                                                                Value="#FF555559"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed"
+                                                                        Value="True">
+                                                                <Setter TargetName="KeyRoot"
+                                                                                Property="Background"
+                                                                                Value="#FF555559"/>
+                                                                <Setter TargetName="KeyRoot"
+                                                                                Property="RenderTransform">
+                                                                        <Setter.Value>
+                                                                                <ScaleTransform ScaleX="0.96"
+                                                                                                ScaleY="0.96"/>
+                                                                        </Setter.Value>
+                                                                </Setter>
+                                                        </Trigger>
+                                                </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                </Setter.Value>
+                        </Setter>
+                </Style>
+                <Style x:Key="OpRepeatButtonStyle"
+                                TargetType="RepeatButton">
+                        <Setter Property="Focusable"
+                                        Value="False"/>
+                        <Setter Property="Background"
+                                        Value="#FF3A3A3D"/>
+                        <Setter Property="Foreground"
+                                        Value="#FFFFFFFF"/>
+                        <Setter Property="BorderBrush"
+                                        Value="#66FFFFFF"/>
+                        <Setter Property="BorderThickness"
+                                        Value="1"/>
+                        <Setter Property="FontSize"
+                                        Value="14"/>
+                        <Setter Property="Margin"
+                                        Value="2"/>
+                        <Setter Property="Template">
+                                <Setter.Value>
+                                        <ControlTemplate TargetType="RepeatButton">
+                                                <Border x:Name="RepeatRoot"
+                                                                Background="{TemplateBinding Background}"
+                                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                                CornerRadius="10"
+                                                        Padding="{TemplateBinding Padding}"
+                                                        RenderTransformOrigin="0.5,0.5">
+                                                        <Border.RenderTransform>
+                                                                <ScaleTransform ScaleX="1"
+                                                                                ScaleY="1"/>
+                                                        </Border.RenderTransform>
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                        VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver"
+                                                                        Value="True">
+                                                                <Setter Property="Background"
+                                                                                Value="#FF555559"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed"
+                                                                        Value="True">
+                                                                <Setter TargetName="RepeatRoot"
+                                                                                Property="Background"
+                                                                                Value="#FF555559"/>
+                                                                <Setter TargetName="RepeatRoot"
+                                                                                Property="RenderTransform">
+                                                                        <Setter.Value>
+                                                                                <ScaleTransform ScaleX="0.96"
+                                                                                                ScaleY="0.96"/>
+                                                                        </Setter.Value>
+                                                                </Setter>
+                                                        </Trigger>
+                                                </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                </Setter.Value>
+                        </Setter>
+                </Style>
+                <Style x:Key="ShortcutButtonStyle"
+                                TargetType="Button">
+                        <Setter Property="Focusable"
+                                        Value="False"/>
+                        <Setter Property="Background"
+                                        Value="#FF3A3A3D"/>
+                        <Setter Property="Foreground"
+                                        Value="#FFFFFFFF"/>
+                        <Setter Property="BorderBrush"
+                                        Value="#66FFFFFF"/>
+                        <Setter Property="BorderThickness"
+                                        Value="1"/>
+                        <Setter Property="FontSize"
+                                        Value="16"/>
+                        <Setter Property="Margin"
+                                        Value="2"/>
+                        <Setter Property="Template">
+                                <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                                <Border x:Name="ShortcutRoot"
+                                                                Background="{TemplateBinding Background}"
+                                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                                CornerRadius="10"
+                                                        Padding="{TemplateBinding Padding}"
+                                                        RenderTransformOrigin="0.5,0.5">
+                                                        <Border.RenderTransform>
+                                                                <ScaleTransform ScaleX="1"
+                                                                                ScaleY="1"/>
+                                                        </Border.RenderTransform>
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                        VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver"
+                                                                        Value="True">
+                                                                <Setter Property="Background"
+                                                                                Value="#FF555559"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsEnabled"
+                                                                        Value="False">
+                                                                <Setter Property="Foreground"
+                                                                                Value="#66FFFFFF"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed"
+                                                                        Value="True">
+                                                                <Setter TargetName="ShortcutRoot"
+                                                                                Property="Background"
+                                                                                Value="#FF555559"/>
+                                                                <Setter TargetName="ShortcutRoot"
+                                                                                Property="RenderTransform">
+                                                                        <Setter.Value>
+                                                                                <ScaleTransform ScaleX="0.96"
+                                                                                                ScaleY="0.96"/>
+                                                                        </Setter.Value>
+                                                                </Setter>
+                                                        </Trigger>
+                                                </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                </Setter.Value>
+                        </Setter>
+                </Style>
+                <Style x:Key="ResizeGripStyle"
+                       TargetType="Thumb">
+                        <Setter Property="Width"
+                                Value="18"/>
+                        <Setter Property="Height"
+                                Value="18"/>
+                        <Setter Property="Margin"
+                                Value="2"/>
+                        <Setter Property="Panel.ZIndex"
+                                Value="10"/>
+                        <Setter Property="Grid.RowSpan"
+                                Value="5"/>
+                        <Setter Property="Background"
+                                Value="Transparent"/>
+                        <Setter Property="Template">
+                                <Setter.Value>
+                                        <ControlTemplate TargetType="Thumb">
+                                                <Path Data="M14,2 L14,14 L2,14 Z"
+                                                      Fill="#66FFFFFF"/>
+                                        </ControlTemplate>
+                                </Setter.Value>
+                        </Setter>
+                </Style>
+        </Window.Resources>
+        <Grid>
+                <Border x:Name="RootBorder"
+                        CornerRadius="14"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        Width="480"
+                        Height="280"
+                        Background="#F02A2A2E"
+                        BorderBrush="#44FFFFFF"
+                        BorderThickness="1"
+                        MouseLeftButtonDown="RootBorder_MouseLeftButtonDown">
+                        <Grid Margin="6">
+                                <Grid.RowDefinitions>
+                                        <RowDefinition Height="16"/>
+                                        <!-- 拖动条 -->
+                                        <RowDefinition Height="38"/>
+                                        <!-- 状态条 -->
+                                        <RowDefinition Height="Auto"/>
+                                        <!-- 候选栏 -->
+                                        <RowDefinition Height="Auto"/>
+                                        <!-- 快捷键行 -->
+                                        <RowDefinition Height="*"/>
+                                        <!-- 按键区 -->
+                                </Grid.RowDefinitions>
+
+                                <Border x:Name="DragStrip"
+                                        Grid.Row="0"
+                                        Background="Transparent"
+                                        ToolTip="拖动移动键盘"
+                                        MouseLeftButtonDown="DragStrip_MouseLeftButtonDown">
+                                        <Rectangle x:Name="GripRect"
+                                                   Width="36"
+                                                   Height="4"
+                                                   RadiusX="2"
+                                                   RadiusY="2"
+                                                   Fill="#55FFFFFF"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                </Border>
+
+                                <Grid Grid.Row="1">
+                                        <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <ItemsControl x:Name="InputLabel"
+                                                      Grid.Column="0"
+                                                      VerticalAlignment="Center">
+                                                <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                                <StackPanel Orientation="Horizontal"
+                                                                            VerticalAlignment="Center"/>
+                                                        </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                        </ItemsControl>
+                                        <Button Grid.Column="1"
+                                                x:Name="LangButton"
+                                                Content="中"
+                                                Style="{StaticResource MiniButtonStyle}"
+                                                MinWidth="60"
+                                                FontSize="14"
+                                                FontWeight="SemiBold"
+                                                ToolTip="中/123/EN 切换"
+                                                Click="LangButton_Click"/>
+                                        <Button Grid.Column="2"
+                                                x:Name="SymbolButton"
+                                                Content="符"
+                                                Style="{StaticResource MiniButtonStyle}"
+                                                ToolTip="标点面板"
+                                                Click="SymbolButton_Click"/>
+                                        <Button Grid.Column="3"
+                                                x:Name="FlashButton"
+                                                Content="闪现"
+                                                Style="{StaticResource MiniButtonStyle}"
+                                                ToolTip="透明度瞬时拉满 1.5 秒（找回键盘）"
+                                                Click="FlashButton_Click"/>
+                                        <Button Grid.Column="4"
+                                                x:Name="ClearButton"
+                                                Content="清"
+                                                Style="{StaticResource MiniButtonStyle}"
+                                                ToolTip="清空输入"
+                                                Click="ClearButton_Click"/>
+                                        <Button x:Name="HideMiniButton"
+                                                Grid.Column="5"
+                                                Content="—"
+                                                Style="{StaticResource MiniButtonStyle}"
+                                                ToolTip="隐藏（托盘双击或 Ctrl+Alt+K 唤回）"
+                                                Click="HideButton_Click"/>
+                                </Grid>
+
+                                <views:CandidateBar x:Name="Bar"
+                                                    Grid.Row="2"
+                                                    MouseLeftButtonDown="Bar_MouseLeftButtonDown"/>
+
+
+                                <!-- §13.26 快捷键行 + §13.28 宏键行：中文/英文模式显示，数字/符号模式隐藏 -->
+                                <StackPanel x:Name="FunctionBarPanel"
+                                            Grid.Row="3"
+                                            Margin="0,2,0,0">
+                                        <UniformGrid x:Name="ShortcutPanel"
+                                                     Rows="1"
+                                                     Columns="5">
+                                                <Button x:Name="SelectAllButton"
+                                                        Style="{StaticResource ShortcutButtonStyle}"
+                                                        Content="全选"
+                                                        Click="ShortcutSelectAll_Click"/>
+                                                <Button x:Name="CopyButton"
+                                                        Style="{StaticResource ShortcutButtonStyle}"
+                                                        Content="复制"
+                                                        Click="ShortcutCopy_Click"/>
+                                                <Button x:Name="PasteButton"
+                                                        Style="{StaticResource ShortcutButtonStyle}"
+                                                        Content="粘贴"
+                                                        Click="ShortcutPaste_Click"/>
+                                                <Button x:Name="SearchButton"
+                                                        Style="{StaticResource ShortcutButtonStyle}"
+                                                        Content="搜索"
+                                                        Click="ShortcutSearch_Click"/>
+                                                <Button x:Name="ScreenshotButton"
+                                                        Style="{StaticResource ShortcutButtonStyle}"
+                                                        Content="截屏"
+                                                        Click="ShortcutScreenshot_Click"/>
+                                        </UniformGrid>
+                                        <UniformGrid x:Name="MacroPanel"
+                                                     Rows="1"
+                                                     Columns="8"
+                                                     Visibility="Collapsed"
+                                                     Height="0"
+                                                     ClipToBounds="True"/>
+                                </StackPanel>
+
+                                <Grid Grid.Row="4"
+                                      Margin="0,2,0,0">
+                                        <!-- 态 1：中文九键 -->
+                                        <Grid x:Name="T9Panel">
+                                                <Grid.RowDefinitions>
+                                                        <RowDefinition Height="*"/>
+                                                        <RowDefinition Height="*"/>
+                                                        <RowDefinition Height="*"/>
+                                                        <RowDefinition Height="*"/>
+                                                        <RowDefinition Height="*"/>
+                                                </Grid.RowDefinitions>
+                                                <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <views:KeyButton x:Name="Key1"
+                                                                 Grid.Row="0"
+                                                                 Grid.Column="0"
+                                                                 Grid.ColumnSpan="2"
+                                                                 Digit="1"/>
+                                                <views:KeyButton x:Name="Key2"
+                                                                 Grid.Row="0"
+                                                                 Grid.Column="2"
+                                                                 Grid.ColumnSpan="2"
+                                                                 Digit="2"/>
+                                                <views:KeyButton x:Name="Key3"
+                                                                 Grid.Row="0"
+                                                                 Grid.Column="4"
+                                                                 Grid.ColumnSpan="2"
+                                                                 Digit="3"/>
+                                                <views:KeyButton x:Name="Key4"
+                                                                 Grid.Row="1"
+                                                                 Grid.Column="0"
+                                                                 Grid.ColumnSpan="2"
+                                                                 Digit="4"/>
+                                                <views:KeyButton x:Name="Key5"
+                                                                 Grid.Row="1"
+                                                                 Grid.Column="2"
+                                                                 Grid.ColumnSpan="2"
+                                                                 Digit="5"/>
+                                                <views:KeyButton x:Name="Key6"
+                                                                 Grid.Row="1"
+                                                                 Grid.Column="4"
+                                                                 Grid.ColumnSpan="2"
+                                                                 Digit="6"/>
+                                                <views:KeyButton x:Name="Key7"
+                                                                 Grid.Row="2"
+                                                                 Grid.Column="0"
+                                                                 Grid.ColumnSpan="2"
+                                                                 Digit="7"/>
+                                                <views:KeyButton x:Name="Key8"
+                                                                 Grid.Row="2"
+                                                                 Grid.Column="2"
+                                                                 Grid.ColumnSpan="2"
+                                                                 Digit="8"/>
+                                                <views:KeyButton x:Name="Key9"
+                                                                 Grid.Row="2"
+                                                                 Grid.Column="4"
+                                                                 Grid.ColumnSpan="2"
+                                                                 Digit="9"/>
+                                                <RepeatButton x:Name="BackspaceButton"
+                                                              Grid.Row="3"
+                                                              Grid.Column="0"
+                                                              Grid.ColumnSpan="3"
+                                                              Style="{StaticResource OpRepeatButtonStyle}"
+                                                              Content="⌫"
+                                                              Delay="400"
+                                                              Interval="70"
+                                                              ToolTip="退格（长按连删；输入串为空时删除目标窗口字符）"
+                                                              Click="BackspaceButton_Click"/>
+                                                <views:KeyButton x:Name="Key0"
+                                                                 Grid.Row="3"
+                                                                 Grid.Column="3"
+                                                                 Grid.ColumnSpan="3"
+                                                                 Digit="0"/>
+                                                <Button x:Name="EnterButton"
+                                                        Grid.Row="4"
+                                                        Grid.Column="0"
+                                                        Grid.ColumnSpan="6"
+                                                        Style="{StaticResource OpButtonStyle}"
+                                                        Content="⏎"
+                                                        ToolTip="回车（输入串非空时原样上屏输入串）"
+                                                        Click="EnterButton_Click"/>
+                                        </Grid>
+
+                                        <!-- 态 2：数字键盘（§13.23：电话键位 1-9+0，纯数字，含退格/回车/返回） -->
+                                        <Grid x:Name="NumberPanel"
+                                              Visibility="Collapsed">
+                                                <Grid.RowDefinitions>
+                                                        <RowDefinition Height="*"/>
+                                                        <RowDefinition Height="*"/>
+                                                        <RowDefinition Height="*"/>
+                                                        <RowDefinition Height="*"/>
+                                                        <RowDefinition Height="*"/>
+                                                </Grid.RowDefinitions>
+                                                <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Button Grid.Row="0"
+                                                        Grid.Column="0"
+                                                        Grid.ColumnSpan="2"
+                                                        Style="{StaticResource OpButtonStyle}"
+                                                        Content="1"
+                                                        Click="NumberKey_Click"
+                                                        Tag="1"/>
+                                                <Button Grid.Row="0"
+                                                        Grid.Column="2"
+                                                        Grid.ColumnSpan="2"
+                                                        Style="{StaticResource OpButtonStyle}"
+                                                        Content="2"
+                                                        Click="NumberKey_Click"
+                                                        Tag="2"/>
+                                                <Button Grid.Row="0"
+                                                        Grid.Column="4"
+                                                        Grid.ColumnSpan="2"
+                                                        Style="{StaticResource OpButtonStyle}"
+                                                        Content="3"
+                                                        Click="NumberKey_Click"
+                                                        Tag="3"/>
+                                                <Button Grid.Row="1"
+                                                        Grid.Column="0"
+                                                        Grid.ColumnSpan="2"
+                                                        Style="{StaticResource OpButtonStyle}"
+                                                        Content="4"
+                                                        Click="NumberKey_Click"
+                                                        Tag="4"/>
+                                                <Button Grid.Row="1"
+                                                        Grid.Column="2"
+                                                        Grid.ColumnSpan="2"
+                                                        Style="{StaticResource OpButtonStyle}"
+                                                        Content="5"
+                                                        Click="NumberKey_Click"
+                                                        Tag="5"/>
+                                                <Button Grid.Row="1"
+                                                        Grid.Column="4"
+                                                        Grid.ColumnSpan="2"
+                                                        Style="{StaticResource OpButtonStyle}"
+                                                        Content="6"
+                                                        Click="NumberKey_Click"
+                                                        Tag="6"/>
+                                                <Button Grid.Row="2"
+                                                        Grid.Column="0"
+                                                        Grid.ColumnSpan="2"
+                                                        Style="{StaticResource OpButtonStyle}"
+                                                        Content="7"
+                                                        Click="NumberKey_Click"
+                                                        Tag="7"/>
+                                                <Button Grid.Row="2"
+                                                        Grid.Column="2"
+                                                        Grid.ColumnSpan="2"
+                                                        Style="{StaticResource OpButtonStyle}"
+                                                        Content="8"
+                                                        Click="NumberKey_Click"
+                                                        Tag="8"/>
+                                                <Button Grid.Row="2"
+                                                        Grid.Column="4"
+                                                        Grid.ColumnSpan="2"
+                                                        Style="{StaticResource OpButtonStyle}"
+                                                        Content="9"
+                                                        Click="NumberKey_Click"
+                                                        Tag="9"/>
+                                                <Button Grid.Row="3"
+                                                        Grid.Column="0"
+                                                        Grid.ColumnSpan="2"
+                                                        Style="{StaticResource OpButtonStyle}"
+                                                        Content="."
+                                                        Click="NumberKey_Click"
+                                                        Tag="."/>
+                                                <Button Grid.Row="3"
+                                                        Grid.Column="2"
+                                                        Grid.ColumnSpan="2"
+                                                        Style="{StaticResource OpButtonStyle}"
+                                                        Content="0"
+                                                        Click="NumberKey_Click"
+                                                        Tag="0"/>
+                                                <RepeatButton Grid.Row="3"
+                                                              Grid.Column="4"
+                                                              Grid.ColumnSpan="2"
+                                                              Style="{StaticResource OpRepeatButtonStyle}"
+                                                              Content="⌫"
+                                                              Delay="400"
+                                                              Interval="70"
+                                                              Click="BackspaceButton_Click"/>
+                                                <Button Grid.Row="4"
+                                                        Grid.Column="0"
+                                                        Grid.ColumnSpan="3"
+                                                        x:Name="NumberLangButton"
+                                                        Style="{StaticResource OpButtonStyle}"
+                                                        Content="中"
+                                                        Click="LangButton_Click"/>
+                                                <Button Grid.Row="4"
+                                                        Grid.Column="3"
+                                                        Grid.ColumnSpan="3"
+                                                        Style="{StaticResource OpButtonStyle}"
+                                                        Content="⏎"
+                                                        Click="EnterButton_Click"/>
+                                        </Grid>
+
+                                        <!-- 态 3：英文 26 键全字母布局（§13.11 / §13.39 / §13.40） -->
+                                                                                <!-- 态 3：英文 26 键全字母布局（§13.11 / §13.39 / §13.40 / v5 数字行） -->
+                                        <Grid x:Name="English26Panel"
+                                              Visibility="Collapsed">
+                                                <Grid.RowDefinitions>
+                                                        <RowDefinition x:Name="English26NumberRowDef"
+                                                                       Height="*"/>
+                                                        <!-- 数字行（v5：` 1-0 - = ⌫，全 ASCII，=号正门） -->
+                                                        <RowDefinition x:Name="English26EditRowDef"
+                                                                       Height="0"/>
+                                                        <!-- 编辑层扩张行（§13.39 / §13.41：与字母行同高） -->
+                                                        <RowDefinition x:Name="English26SymbolRowDef"
+                                                                       Height="*"/>
+                                                        <!-- 符号行（§13.40-S1 / §13.41：与字母行同高） -->
+                                                        <RowDefinition Height="*"/>
+                                                        <!-- 字母第 1 行 -->
+                                                        <RowDefinition Height="*"/>
+                                                        <!-- 字母第 2 行 -->
+                                                        <RowDefinition Height="*"/>
+                                                        <!-- 字母第 3 行 -->
+                                                        <RowDefinition Height="*"/>
+                                                        <!-- 底栏 -->
+                                                </Grid.RowDefinitions>
+                                                <UniformGrid x:Name="English26NumberRow"
+                                                             Grid.Row="0"
+                                                             Rows="1"
+                                                             Columns="14"/>
+                                                <Grid x:Name="English26EditRow"
+                                                      Grid.Row="1"
+                                                      Visibility="Collapsed"
+                                                      ClipToBounds="True">
+                                                        <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                </Grid>
+                                                <UniformGrid x:Name="English26SymbolRow"
+                                                             Grid.Row="2"
+                                                             Rows="1"
+                                                             Columns="16"/>
+                                                <UniformGrid x:Name="English26Row1"
+                                                             Grid.Row="3"
+                                                             Rows="1"
+                                                             Columns="13"/>
+                                                <Grid Grid.Row="4">
+                                                        <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="0.5*"/>
+                                                                <ColumnDefinition Width="9*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <UniformGrid x:Name="English26Row2"
+                                                                     Grid.Column="1"
+                                                                     Rows="1"
+                                                                     Columns="11"/>
+                                                </Grid>
+                                                <Grid Grid.Row="5">
+                                                        <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="1.5*"/>
+                                                                <ColumnDefinition Width="8.5*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <UniformGrid x:Name="English26Row3"
+                                                                     Grid.Column="1"
+                                                                     Rows="1"
+                                                                     Columns="10"/>
+                                                </Grid>
+                                                <Grid Grid.Row="6">
+                                                        <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+																<ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Button Grid.Column="0"
+                                                                x:Name="English26LangButton"
+                                                                Style="{StaticResource OpButtonStyle}"
+                                                                Content="中"
+                                                                Click="LangButton_Click"/>
+                                                        <Button Grid.Column="1"
+                                                                x:Name="English26ShiftButton"
+                                                                Style="{StaticResource OpButtonStyle}"
+                                                                Content="↑"
+                                                                Click="English26Shift_Click"/>
+                                                        <Button Grid.Column="2"
+                                                                x:Name="English26CtrlButton"
+                                                                Style="{StaticResource OpButtonStyle}"
+                                                                Content="Ctrl"
+                                                                Click="English26Ctrl_Click"/>
+                                                        <Button Grid.Column="3"
+                                                                x:Name="English26AltButton"
+                                                                Style="{StaticResource OpButtonStyle}"
+                                                                Content="Alt"
+                                                                Click="English26Alt_Click"/>
+                                                        <Button Grid.Column="4"
+                                                                x:Name="English26SymbolSetToggle"
+                                                                Style="{StaticResource OpButtonStyle}"
+                                                                Content="全角"
+                                                                Click="English26SymbolSetToggle_Click"/>
+                                                        <Button Grid.Column="5"
+                                                                Style="{StaticResource OpButtonStyle}"
+                                                                Content="空格"
+                                                                Click="SpaceButton_Click"/>
+                                                        <Button Grid.Column="6"
+                                                                x:Name="English26EditButton"
+                                                                Style="{StaticResource OpButtonStyle}"
+                                                                Content="编辑"
+                                                                Click="English26Edit_Click"/>
+														<Button Grid.Column="7"
+                                                                x:Name="English26NumberToggle"
+                                                                Style="{StaticResource OpButtonStyle}"
+                                                                Content="123"
+                                                                Click="English26NumberToggle_Click"/>
+                                                        <Button Grid.Column="8"
+                                                                x:Name="English26SymbolToggle"
+                                                                Style="{StaticResource OpButtonStyle}"
+                                                                Content="符号"
+                                                                Click="English26SymbolToggle_Click"/>
+                                                        <Button Grid.Column="9"
+                                                                Style="{StaticResource OpButtonStyle}"
+                                                                Content="⌫"
+                                                                Click="BackspaceButton_Click"/>
+                                                        <Button Grid.Column="10"
+                                                                Style="{StaticResource OpButtonStyle}"
+                                                                Content="⏎"
+                                                                Click="EnterButton_Click"/>
+                                                </Grid>
+                                        </Grid>
+
+                                        <!-- 态 4：标点面板（§13.15：页签分页 + 返回键常驻） -->
+                                        <Grid x:Name="SymbolPanel"
+                                              Visibility="Collapsed">
+                                                <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="*"/>
+                                                </Grid.RowDefinitions>
+                                                <StackPanel x:Name="SymbolTabs"
+                                                            Grid.Row="0"
+                                                            Orientation="Horizontal"
+                                                            Margin="0,0,0,2"/>
+                                                <UniformGrid x:Name="SymbolGrid"
+                                                             Grid.Row="1"
+                                                             Rows="3"
+                                                             Columns="8"/>
+                                        </Grid>
+                                </Grid>
+
+                                <!-- R1/P1-13 尺寸调节手柄：四角均可拖拽缩放，无级、无上限、仅防消失下限（P1-12：初始的 45%），双击恢复默认 360×280 -->
+                                <Thumb x:Name="ResizeGripNW"
+                                       Tag="NW"
+                                       Style="{StaticResource ResizeGripStyle}"
+                                       ToolTip="拖动调整尺寸，双击恢复默认"
+                                       HorizontalAlignment="Left"
+                                       VerticalAlignment="Top"
+                                       Cursor="SizeNWSE"
+                                       DragStarted="ResizeGrip_DragStarted"
+                                       DragDelta="ResizeGrip_DragDelta"
+                                       MouseDoubleClick="ResizeGrip_MouseDoubleClick"/>
+                                <Thumb x:Name="ResizeGripNE"
+                                       Tag="NE"
+                                       Style="{StaticResource ResizeGripStyle}"
+                                       ToolTip="拖动调整尺寸，双击恢复默认"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Top"
+                                       Cursor="SizeNESW"
+                                       DragStarted="ResizeGrip_DragStarted"
+                                       DragDelta="ResizeGrip_DragDelta"
+                                       MouseDoubleClick="ResizeGrip_MouseDoubleClick"/>
+                                <Thumb x:Name="ResizeGripSW"
+                                       Tag="SW"
+                                       Style="{StaticResource ResizeGripStyle}"
+                                       ToolTip="拖动调整尺寸，双击恢复默认"
+                                       HorizontalAlignment="Left"
+                                       VerticalAlignment="Bottom"
+                                       Cursor="SizeNESW"
+                                       DragStarted="ResizeGrip_DragStarted"
+                                       DragDelta="ResizeGrip_DragDelta"
+                                       MouseDoubleClick="ResizeGrip_MouseDoubleClick"/>
+                                <Thumb x:Name="ResizeGripSE"
+                                       Tag="SE"
+                                       Style="{StaticResource ResizeGripStyle}"
+                                       ToolTip="拖动调整尺寸，双击恢复默认"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Bottom"
+                                       Cursor="SizeNWSE"
+                                       DragStarted="ResizeGrip_DragStarted"
+                                       DragDelta="ResizeGrip_DragDelta"
+                                       MouseDoubleClick="ResizeGrip_MouseDoubleClick"/>
+                        </Grid>
+                </Border>
+                <Border x:Name="RightEdgeStrip"
+                        HorizontalAlignment="Right"
+                        Width="24"
+                        Background="#F02A2A2E"
+                        BorderBrush="#44FFFFFF"
+                        BorderThickness="1,0,0,0"
+                        Visibility="Collapsed"
+                        PreviewMouseLeftButtonDown="RightEdgeStrip_PreviewMouseLeftButtonDown">
+                        <Button x:Name="RightEdgeStripButton"
+                                Content="⟨"
+                                Focusable="False"
+                                Background="Transparent"
+                                Foreground="#CCFFFFFF"
+                                BorderThickness="0"
+                                FontSize="20"
+                                VerticalAlignment="Stretch"
+                                HorizontalAlignment="Stretch"
+                                ToolTip="点击展开键盘"
+                                Click="RightEdgeStripButton_Click"/>
+                </Border>
+        </Grid>
+</Window>

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>NineKey.Keyboard</RootNamespace>
+    <AssemblyName>NineKey.Keyboard.Core</AssemblyName>
+    <Description>Pure keyboard domain logic for NineKey IME: layouts, input state machines, settings, platform-neutral services. Zero WPF/WinForms dependency.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NineKey.Core\NineKey.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="NineKey.Keyboard.Core.Tests" />
+  </ItemGroup>
+</Project>

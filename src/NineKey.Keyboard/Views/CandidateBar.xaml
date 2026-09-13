@@ -1,0 +1,70 @@
+<UserControl x:Class="NineKey.Keyboard.Views.CandidateBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="CandidateButtonStyle"
+                TargetType="Button">
+            <Setter Property="Focusable"
+                    Value="False"/>
+            <Setter Property="Background"
+                    Value="Transparent"/>
+            <Setter Property="Foreground"
+                    Value="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Foreground}"/>
+            <Setter Property="BorderThickness"
+                    Value="0"/>
+            <Setter Property="FontSize"
+                    Value="29"/>
+            <Setter Property="Padding"
+                    Value="6,2"/>
+            <Setter Property="Margin"
+                    Value="1,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                    Value="True">
+                                <Setter Property="Background"
+                                        Value="#552F7CD6"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+    <Border Background="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=BarBackground}"
+            CornerRadius="8"
+            Height="48"
+            Margin="4,2">
+        <DockPanel LastChildFill="True">
+            <TextBlock x:Name="CountLabel"
+                    DockPanel.Dock="Right"
+                    VerticalAlignment="Center"
+                       FontSize="10"
+                    Margin="4,0"
+                    Foreground="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=SubForeground}"/>
+            <Button DockPanel.Dock="Right"
+                    Content="&gt;"
+                    Width="26"
+                    Style="{StaticResource CandidateButtonStyle}"
+                    ToolTip="下一页"
+                    Click="NextPage_Click"/>
+            <Button DockPanel.Dock="Right"
+                    Content="&lt;"
+                    Width="26"
+                    Style="{StaticResource CandidateButtonStyle}"
+                    ToolTip="上一页"
+                    Click="PreviousPage_Click"/>
+            <StackPanel   x:Name="CandidatesPanel"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center"/>
+        </DockPanel>
+    </Border>
+</UserControl>

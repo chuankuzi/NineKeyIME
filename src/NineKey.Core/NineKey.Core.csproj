@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>NineKey.Core</RootNamespace>
+    <AssemblyName>NineKey.Core</AssemblyName>
+    <Description>NineKey IME core engine: T9 pinyin signature, lexicon, ranking. Zero UI dependency.</Description>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NineKey.Keyboard</RootNamespace>
+    <AssemblyName>NineKey.Keyboard</AssemblyName>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Description>WPF on-screen keyboard UI for NineKey IME.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NineKey.Core\NineKey.Core.csproj" />
+    <ProjectReference Include="..\NineKey.Keyboard.Core\NineKey.Keyboard.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- §13.32 托盘图标：assets/ninekey.ico 以嵌入资源进包（单文件发布安全） -->
+    <EmbeddedResource Include="../../assets/ninekey.ico" LogicalName="app.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- §13.31 简繁输出：OpenCC 纯托管移植，MIT，词典内嵌（单文件发布零额外文件） -->
+    <PackageReference Include="OpenccNetLib" Version="1.6.2" />
+  </ItemGroup>
+</Project>

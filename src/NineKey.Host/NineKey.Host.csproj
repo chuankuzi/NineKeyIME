@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ApplicationIcon>../../assets/ninekey.ico</ApplicationIcon>
+    <RootNamespace>NineKey.Host</RootNamespace>
+    <AssemblyName>NineKey.Host</AssemblyName>
+    <OutputType>WinExe</OutputType>
+    <Description>NineKey IME host: assembly, tray, hotkey, single instance.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NineKey.Keyboard\NineKey.Keyboard.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\dict\lexicon.bin.gz">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>dict\lexicon.bin.gz</TargetPath>
+    </None>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NineKey.DictBuilder</RootNamespace>
+    <AssemblyName>NineKey.DictBuilder</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <Description>Compiles raw pinyin corpora into the NineKey lexicon file.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\NineKey.Core\NineKey.Core.csproj" />
+  </ItemGroup>
+</Project>
