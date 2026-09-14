@@ -1,5 +1,5 @@
 /*// 本文件职责：T9 按键控件，处理点按/Flick 手势、提示泡渲染、误触概率计算与鼠标/触屏双通道输入。
-// 数据流位置：KeyboardWindow 配置键定义 → KeyButton 识别手势 → 触发 DigitPressed/FlickCommitted → KeyController 处理输入。
+// 数据流位置：KeyboardWindow 配置键定义 → KeyButton 识别手势 → 触发 DigitPressed → KeyController 处理输入。
 // ⚠ 坑 1：WPF 触屏会提升为鼠标事件，必须用 _touchActive 和 500ms 抑制避免双发。
 // ⚠ 坑 2：手势锚定（CaptureMouse/CaptureTouch）必须按下即做，滑出键边界后仍需持续收到 Move。
 // ⚠ 坑 3：丢失 MouseUp/TouchUp 时状态会卡住，Press 入口和 LostCapture 都要做防御复位。
@@ -79,8 +79,6 @@ public class KeyButton : Control
         };
     }
 
-    /// <summary>提交事件：(值, 是否直接上屏)。Tap 提交 Digit，Flick 提交方向槽字母。</summary>
-    public event Action<string, bool>? FlickCommitted;
 
     /// <summary>§M8-1：带误触概率的按键事件。Tap 提供多位候选概率；Flick 视为精确输入。</summary>
     public event Action<KeyPressInfo>? DigitPressed;
@@ -422,18 +420,7 @@ public class KeyButton : Control
             case FlickOutcome.Tap:
             {
                 // 点按 = 中心值：数字键进输入串（T9），直投键上屏（F6 中心字语义见 §2.1 双输入方式并存）
-                FlickCommitted?.Invoke(Digit, CommitDirect);
-                var info = new KeyPressInfo(Digit, CommitDirect, false, _lastVariants);
-                FileLogger.Info($"digit-pressed: value={info.Value} source={(_isTouchPress ? "touch" : "mouse")} commitDirect={info.CommitDirect}");
-                DigitPressed?.Invoke(info);
-                break;
-            }
-            case FlickOutcome.Commit when result.Slot >= 0 && result.Slot < 4:
-            {
-                var flickValue = _slots[result.Slot];
-                FlickCommitted?.Invoke(flickValue, CommitDirect);
-                var info = new KeyPressInfo(flickValue, CommitDirect, true, [new TouchVariant(flickValue[0], 1.0)]);
-                FileLogger.Info($"digit-pressed: value={info.Value} source=flick commitDirect={info.CommitDirect}");
+                var info = new KeyPressInfo(Digit, CommitDirect, _lastVariants);
                 DigitPressed?.Invoke(info);
                 break;
             }
@@ -858,8 +845,7 @@ public class KeyButton : Control
             return;
         }
 
-        var info = new KeyPressInfo(Digit, CommitDirect, false, _lastVariants);
-        FileLogger.Info($"digit-pressed: value={info.Value} source={(_isTouchPress ? "touch" : "mouse")} commitDirect={info.CommitDirect}");
+        var info = new KeyPressInfo(Digit, CommitDirect, _lastVariants);
         DigitPressed?.Invoke(info);
     }
 

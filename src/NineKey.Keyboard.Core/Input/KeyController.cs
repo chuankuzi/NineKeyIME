@@ -445,7 +445,6 @@ public sealed class KeyController
         }
 
         var queryInput = GetQueryInput();
-        FileLogger.Info($"refresh-candidates: buffer={_buffer.Letters} queryInput={queryInput} engine={_engine.GetHashCode()} touchEnabled={_touchCorrectionEnabled} touchCols={_touchColumns.Count}");
         var result = _touchCorrectionEnabled && _touchColumns.Count > 0
             ? QueryWithCorrection(queryInput)
             : _engine.Query(queryInput);
@@ -454,7 +453,6 @@ public sealed class KeyController
         _candidates = PrependPinyinCombos(_candidates, queryInput.Length);
         _topPinyin = _candidates.FirstOrDefault(c => c.Pinyin is not null && c.Pinyin.Length == queryInput.Length)?.Pinyin
             ?? (_candidates.Count > 0 ? result.TopPinyin : null);
-        FileLogger.Info($"refresh-candidates-result: candidates={_candidates.Count} topPinyin={_topPinyin ?? "(null)"} consumed={result.ConsumedKeys} leftover={result.Leftover}");
     }
 
     /// <summary>当前实际查询串：从激活音节开始到末尾。</summary>

@@ -19,6 +19,7 @@ using NineKey.Core.Engine;
 using NineKey.Keyboard.Input;
 using NineKey.Keyboard.Services;
 using NineKey.Keyboard.Settings;
+using OpenccNetLib;
 using Brush = System.Windows.Media.Brush;
 using Brushes = System.Windows.Media.Brushes;
 using Color = System.Windows.Media.Color;
@@ -33,6 +34,8 @@ public partial class KeyboardWindow : Window
     private readonly QueryEngine _engine;
     private readonly KeyController _controller;
     private readonly TextInjector _injector;
+    private readonly ConvertingTextInjector _outputInjector;
+    private Opencc? _opencc;
     private readonly AppSettings _settings;
     private readonly HotkeyService _hotkey = new();
     private readonly TrayService _tray = new();
@@ -157,7 +160,13 @@ public partial class KeyboardWindow : Window
 
         _engine = engine;
         _injector = new TextInjector();
-        _controller = new KeyController(engine, userDict, _injector);
+        _outputInjector = new ConvertingTextInjector(_injector);
+        if (_settings.TraditionalOutput)
+        {
+            _outputInjector.Converter = s => (_opencc ??= new Opencc(OpenccConfig.S2T)).Convert(s);
+        }
+
+        _controller = new KeyController(engine, userDict, _outputInjector);
         InitializeComponent();
         ApplyTheme();
 
@@ -221,7 +230,6 @@ public partial class KeyboardWindow : Window
         }
 
         // §13.5：空格键只发 VK_SPACE，不走 DigitPressed（避免输出字符 '0'）
-        //Key0.FlickCommitted += (_, _) => _controller.CommitSpace();
         // §13.5：0 键 = 空格键。KeyLayout 中 Digit="0"，不走 OnDigitPressed（会输出 '0'），单独直挂空格提交。
         Key0.DigitPressed += _ => _controller.CommitSpace();
 
@@ -292,6 +300,7 @@ public partial class KeyboardWindow : Window
             ApplyTheme();
         };
         _tray.AutoPopupToggled += on => SetAutoPopup(on);
+        _tray.TraditionalToggled += on => SetTraditionalOutput(on);
         _tray.HotkeyToggled += on => SetHotkey(on);
         _tray.AdminRunRequested += () => OnAdminChecked();
         _tray.TouchKbGuardToggled += on => SetTouchKbGuard(on);
@@ -425,6 +434,7 @@ public partial class KeyboardWindow : Window
             _settings.FuzzyAnAng, _settings.FuzzyEnEng, _settings.FuzzyInIng,
             _settings.Opacity, _settings.KeyOpacity
             /*_settings.BubbleDelayMs, _settings.BubbleShowMs*/);
+        _tray.SyncRequested += () => _tray.SyncTraditional(_settings.TraditionalOutput);
         _tray.ExitRequested += Close;
 
         // §0.3：目标是提权窗口时的指引（节流 15 秒）
@@ -561,7 +571,6 @@ public partial class KeyboardWindow : Window
         // 若走 WPF 默认处理，激活冲突会吃掉鼠标消息，导致按键无响应。必须显式返回 MA_NOACTIVATE。
         if (msg == NativeMethods.WmMouseActivate)
         {
-            FileLogger.Info("keyboard wm-mouseactivate: returning MA_NOACTIVATE");
             handled = true;
             return NativeMethods.MaNoActivate;
         }
@@ -569,22 +578,9 @@ public partial class KeyboardWindow : Window
         return nint.Zero;
     }
 
-    /*private void OnKeyFlick(string value, bool commitDirect)
-    {
-        if (commitDirect)
-        {
-            var text = value == "空格" ? " " : value;
-            _controller.CommitDirect(text);
-            return;
-        }
-
-        _controller.AppendLetter(char.ToLowerInvariant(value[0]));
-    }*/
-
     private void OnDigitPressed(KeyPressInfo info)
     {
         // ⚠ 坑：§M8-1 只有触屏点按启用误触纠正；Flick/鼠标点击视为精确输入，避免把滑动判定成误触。
-        //if (info.IsFlick || !_settings.TouchCorrectionEnabled || info.Value.Length != 1)
         // ⚠ 坑：§M8-1 只有触屏点按启用误触纠正；鼠标点击视为精确输入，避免把精确点击判定成误触。
         if (!_settings.TouchCorrectionEnabled || info.Value.Length != 1)
         {
@@ -949,6 +945,32 @@ public partial class KeyboardWindow : Window
         Focusable = false,
     };
 
+    /// <summary>v5 角标键面：主字 + 右上角 Shift 符号（ShiftedSymbolMap 为唯一事实源，键面显示与 Shift 输入必然一致，同 PC 美式键盘）。</summary>
+    private System.Windows.Controls.Button MakeCornerButton(string main, string corner)
+    {
+        var btn = MakePanelButton(main);
+        var grid = new System.Windows.Controls.Grid();
+        grid.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = main,
+            FontSize = 16,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+            VerticalAlignment = System.Windows.VerticalAlignment.Bottom,
+            Margin = new System.Windows.Thickness(6, 0, 0, 3),
+        });
+        grid.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = corner,
+            FontSize = 9,
+            Opacity = 0.75,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+            VerticalAlignment = System.Windows.VerticalAlignment.Top,
+            Margin = new System.Windows.Thickness(0, 2, 4, 0),
+        });
+        btn.Content = grid;
+        return btn;
+    }
+
     private System.Windows.Controls.Button? _editCapsLockButton;
 
     private void BuildEnglish26Panel()
@@ -961,7 +983,9 @@ public partial class KeyboardWindow : Window
             foreach (var c in rows[r])
             {
                 var lower = char.ToLowerInvariant(c);
-                var btn = MakePanelButton(lower.ToString());
+                var btn = ShiftedSymbolMap.TryGetValue(lower, out var cornerSym)
+                    ? MakeCornerButton(lower.ToString(), cornerSym.ToString())
+                    : MakePanelButton(lower.ToString());
                 btn.Tag = lower;
                 btn.Click += (_, _) => OnEnglishLetterClick(lower);
                 _englishLetterButtons[lower] = btn;
@@ -997,6 +1021,7 @@ public partial class KeyboardWindow : Window
         {
             var s = sym;
             var btn = MakePanelButton(s);
+            btn.MinWidth = 0; // 符号行 16 列均分：解除按 13 键行调校的 MinWidth，防右缘裁切
             btn.Click += (_, _) => OnSymbolOrLetterCommit(s);
             _panelButtons.Add(btn);
             _ = English26SymbolRow.Children.Add(btn);
@@ -1011,7 +1036,10 @@ public partial class KeyboardWindow : Window
         foreach (var key in keys)
         {
             var k = key;
-            var btn = MakePanelButton(k);
+            var btn = k.Length == 1 && ShiftedSymbolMap.TryGetValue(k[0], out var shifted)
+                ? MakeCornerButton(k, shifted.ToString())
+                : MakePanelButton(k);
+            btn.MinWidth = 0; // 数字行 14 键同理
             btn.Click += (_, _) => OnEnglish26NumberCommit(k);
             _panelButtons.Add(btn);
             _ = English26NumberRow.Children.Add(btn);
@@ -2295,6 +2323,20 @@ public partial class KeyboardWindow : Window
         }
 
         CopyButton.IsEnabled = hasSelection;
+    }
+
+    private void SetTraditionalOutput(bool on)
+    {
+        _settings.TraditionalOutput = on;
+        if (on)
+        {
+            _outputInjector.Converter = s => (_opencc ??= new Opencc(OpenccConfig.S2T)).Convert(s);
+        }
+        else
+        {
+            _outputInjector.Converter = null;
+        }
+        _settings.Save();
     }
 
     private void SetAutoPopup(bool on)
