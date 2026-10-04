@@ -109,6 +109,55 @@ public sealed class InMemoryLexicon
         return removed;
     }
 
+    /// <summary>该词当前在索引里的全部条目（两索引去重）——删用户词回填系统本体时用。</summary>
+    public IReadOnlyList<LexEntry> EntriesOf(string word)
+    {
+        var seen = new HashSet<(string, string)>();
+        var result = new List<LexEntry>();
+        foreach (var index in new[] { _fullIndex, _jianpinIndex })
+        {
+            foreach (var list in index.Values)
+            {
+                foreach (var e in list)
+                {
+                    if (e.Word == word && seen.Add((e.Word, e.Pinyin)))
+                    {
+                        result.Add(e);
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>按词移除索引条目（可限定来源）。EntryCount 以全拼索引为准，避免双索引重复扣减。</summary>
+    public bool RemoveWord(string word, LexiconSource? onlySource = null)
+    {
+        var removedFromFull = RemoveWordFrom(_fullIndex, word, onlySource);
+        _ = RemoveWordFrom(_jianpinIndex, word, onlySource);
+        EntryCount -= removedFromFull;
+        return removedFromFull > 0;
+    }
+
+    private static int RemoveWordFrom(Dictionary<string, List<LexEntry>> index, string word, LexiconSource? onlySource)
+    {
+        var removed = 0;
+        foreach (var key in index.Keys.ToList())
+        {
+            var list = index[key];
+            removed += onlySource is null
+                ? list.RemoveAll(e => e.Word == word)
+                : list.RemoveAll(e => e.Word == word && e.Source == onlySource);
+            if (list.Count == 0)
+            {
+                index.Remove(key);
+            }
+        }
+
+        return removed;
+    }
+
     /// <summary>按全拼数字签名精确匹配。signature 为 QueryEngine 转好的数字签名。</summary>
     public IReadOnlyList<LexEntry> QueryExact(string signature) =>
         _fullIndex.TryGetValue(signature, out var list) ? list : [];

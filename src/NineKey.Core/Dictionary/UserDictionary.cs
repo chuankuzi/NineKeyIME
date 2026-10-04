@@ -89,6 +89,39 @@ public sealed class UserDictionary
         }
     }
 
+    /// <summary>
+    /// 移除学习记录（长按候选→删除错词用）：返回是否真的移除过；落盘由调用方决定。
+    /// </summary>
+    public bool Remove(string word)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(word);
+        lock (_sync)
+        {
+            return _words.Remove(word);
+        }
+    }
+
+    /// <summary>
+    /// 置顶：把该词学习次数直接提到上限（排序里用户词权重随之封顶）。
+    /// 无拼音且无既有记录时不建条目（无拼音的词不进索引）。
+    /// </summary>
+    public bool Pin(string word, string? pinyin)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(word);
+        lock (_sync)
+        {
+            _words.TryGetValue(word, out var current);
+            var py = !string.IsNullOrEmpty(pinyin) ? pinyin : current?.Pinyin ?? string.Empty;
+            if (py.Length == 0)
+            {
+                return false;
+            }
+
+            _words[word] = new UserWord(py, long.MaxValue / 2);
+            return true;
+        }
+    }
+
     /// <summary>将当前学习记录 JSON 持久化到构造时指定的路径（含目录创建）。</summary>
     public void Save()
     {

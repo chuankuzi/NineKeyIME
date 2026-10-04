@@ -1,4 +1,4 @@
-// 本文件职责：自定义宏编辑器窗口，负责增删改宏、数量上限控制，以及保存时回写设置。
+// 本文件职责：自定义宏 / 常用语编辑器窗口，负责增删改宏、数量与长度上限控制，以及保存时回写设置。
 // 数据流位置：托盘「编辑宏」打开本窗口 → 用户编辑 → Saved 事件 → KeyboardWindow 重建宏面板并持久化。
 // ⚠ 坑 1：同进程直插事件必须在窗口关闭时注销，否则 TextInjector 全局事件会残留死引用。
 // ⚠ 坑 2：宏列表在构造时深拷贝，保存前才清空/截断/trim，避免中途污染 Settings。
@@ -15,11 +15,14 @@ using NineKey.Keyboard.Settings;
 namespace NineKey.Keyboard.Views;
 
 /// <summary>
-/// 自定义宏编辑器窗口（§13.28）：增删改宏，上限 8 个，保存时触发 Saved 事件回写设置。
+/// 自定义宏编辑器窗口（§13.28）：增删改宏，上限 16 个，保存时触发 Saved 事件回写设置。
 /// </summary>
 public partial class MacroEditorWindow : Window
 {
-    public const int MaxMacros = 8;
+    public const int MaxMacros = 16;
+
+    /// <summary>动作内容长度上限（批8：常用语放宽到 200 字）。</summary>
+    public const int MaxContentLength = 200;
     private readonly ObservableCollection<Macro> _macros = [];
 
     /// <summary>用户点击保存时触发，参数为清理后的宏列表。</summary>
@@ -307,6 +310,12 @@ public partial class MacroEditorWindow : Window
                 }
 
                 m.Content = m.Content.Trim();
+
+                // 批8：内容上限 200 字（文本框已限长，这里兜底防粘贴/旧数据越界）
+                if (m.Content.Length > MaxContentLength)
+                {
+                    m.Content = m.Content[..MaxContentLength];
+                }
             }
 
             Saved?.Invoke(Result);

@@ -33,6 +33,9 @@ public sealed class QueryEngine
     private readonly Ranker _ranker;
     private readonly UserDictionary _userDict;
 
+    /// <summary>学习前被顶掉的条目暂存（键=词）：只用于删用户词时回填系统本体，不参与任何排序权重。</summary>
+    private readonly Dictionary<string, List<LexEntry>> _preLearnEntries = new(StringComparer.Ordinal);
+
     public QueryEngine(InMemoryLexicon lexicon, Ranker ranker, UserDictionary userDict)
         : this(lexicon, ranker, userDict, FuzzyProfile.AllOff)
     {
@@ -57,8 +60,37 @@ public sealed class QueryEngine
         var py = pinyin ?? _userDict.GetPinyin(word);
         if (!string.IsNullOrEmpty(py))
         {
+            // ⚠ 坑：Upsert 按 (词,拼音) 覆盖同键条目，会把系统本体条目顶掉。删除用户词必须能"恢复未学前的
+            // 出厂行为"（系统同字词照常出候选、仅失去用户加权），所以覆盖前先暂存被顶掉的条目，删词时回填。
+            // 该暂存只服务删除回填，不参与权重计算。
+            if (!_preLearnEntries.ContainsKey(word))
+            {
+                _preLearnEntries[word] = _lexicon.EntriesOf(word).ToList();
+            }
+
             _lexicon.Upsert(new LexEntry(word, py, ScaleUserFreq(count), LexiconSource.User));
         }
+    }
+
+    /// <summary>
+    /// 删除用户词（无黑名单口径）：物理移除用户词典条目并落盘 + 移除索引里的用户来源条目，
+    /// 再把学习前暂存的系统本体条目回填 → 系统同字词回落为正常候选、仅失去用户加权；
+    /// 纯用户词（系统库无此词）无条目可回填，因而自然消失。返回用户词典是否确有该条目。
+    /// </summary>
+    public bool ForgetUserWord(string word)
+    {
+        var removed = _userDict.Remove(word);
+        _userDict.Save();
+        _lexicon.RemoveWord(word, LexiconSource.User);
+        if (_preLearnEntries.Remove(word, out var originals))
+        {
+            foreach (var entry in originals)
+            {
+                _lexicon.Upsert(entry);
+            }
+        }
+
+        return removed;
     }
 
     /// <summary>

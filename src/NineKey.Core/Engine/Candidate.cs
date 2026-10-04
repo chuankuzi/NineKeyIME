@@ -24,6 +24,9 @@ public enum CandidateSource
 
     /// <summary>拼音组合引导项（§letter-pin：KeyController 在 Ranker 之后前置插入，不参与排序；点击=锁定/撤销组合）。</summary>
     PinyinGuide,
+
+    /// <summary>句子记忆候选（批11）：由 KeyController 在第 1 页末位插入，**不参与排序**；若误入 Ranker 则落 `_ => 4` 兜底档。</summary>
+    SentenceMemory,
 }
 
 /// <summary>

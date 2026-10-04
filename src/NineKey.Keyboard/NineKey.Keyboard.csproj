@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <RootNamespace>NineKey.Keyboard</RootNamespace>
     <AssemblyName>NineKey.Keyboard</AssemblyName>
@@ -11,11 +11,13 @@
     <ProjectReference Include="..\NineKey.Keyboard.Core\NineKey.Keyboard.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <!-- §13.32 托盘图标：assets/ninekey.ico 以嵌入资源进包（单文件发布安全） -->
+    <!-- 托盘图标：assets/ninekey.ico 以嵌入资源进包（单文件发布安全） -->
     <EmbeddedResource Include="../../assets/ninekey.ico" LogicalName="app.ico" />
+    <!-- 按键音：assets/keyclick.wav 以嵌入资源进包（单文件发布安全，零额外文件） -->
+    <EmbeddedResource Include="../../assets/keyclick.wav" LogicalName="keyclick.wav" />
   </ItemGroup>
   <ItemGroup>
-    <!-- §13.31 简繁输出：OpenCC 纯托管移植，MIT，词典内嵌（单文件发布零额外文件） -->
+    <!-- 简繁输出：OpenCC 纯托管移植，MIT，词典内嵌（单文件发布零额外文件） -->
     <PackageReference Include="OpenccNetLib" Version="1.6.2" />
   </ItemGroup>
 </Project>

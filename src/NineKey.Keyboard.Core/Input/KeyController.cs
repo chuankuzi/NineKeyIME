@@ -5,6 +5,7 @@
 // 相关规格：§2.3、§M8-1、§M8-5、§13.5、§13.8。
 
 using NineKey.Core.Dictionary;
+using NineKey.Core.Memory;
 using NineKey.Core.Engine;
 using NineKey.Core.Input;
 using NineKey.Core.Pinyin;
@@ -20,7 +21,7 @@ public sealed record CommittedSegment(string Text, string Pinyin, int KeyCount);
 /// </summary>
 public sealed class KeyController
 {
-    public const int PageSize = 4;
+    public const int PageSize = 5;
 
     private readonly QueryEngine _engine;
     private readonly UserDictionary _userDict;
@@ -28,8 +29,34 @@ public sealed class KeyController
     private readonly InputBuffer _buffer = new();
     private readonly List<string> _history = new(); // 最近上屏，最新在前
 
+    // 长按删词后本会话内压掉的词：引擎索引在构造/学习时已合并该词，词典删除后索引里仍留着，
+    // 故在本层过滤（重启后索引重建，条目自然消失）。
+
+
     private IReadOnlyList<Candidate> _candidates = [];
     private int _pageIndex;
+
+    /// <summary>连续上屏运行缓冲（批11）：标点/清空/停顿三触发结算成句。</summary>
+    private readonly System.Text.StringBuilder _runBuffer = new();
+
+    /// <summary>
+    /// 与运行缓冲成对追加的**累计拼音**（批11）：句库签名只能由拼音算（Signature.Of），
+    /// 正文进 _runBuffer、拼音进这里，结算时才把签名交给句库（见 SettleRunBuffer 坑注释）。
+    /// </summary>
+    private readonly System.Text.StringBuilder _runPinyin = new();
+
+    private SentenceMemory _sentences = new();
+
+    /// <summary>句子记忆句库（批11；壳层可替换以便注入路径或日志回调）。关=零记录零查询。</summary>
+    public SentenceMemory Sentences
+    {
+        get => _sentences;
+        set => _sentences = value;
+    }
+
+    /// <summary>句读/标点字符集：上屏标点即结算成句；结算时去尾部标点。</summary>
+    private static readonly char[] PunctuationChars =
+        "，。！？；：、,.!?;:…—～~·\"'“”‘’()（）《》〈〉【】[]{}「」".ToCharArray();
     private string? _topPinyin;
 
     /// <summary>§letter-pin：列号→锁定字母。仅约束组成行显示，不改缓冲与数字签名（同键换字母签名天然不变）。</summary>
@@ -161,12 +188,36 @@ public sealed class KeyController
         get
         {
             var page = _candidates.Skip(_pageIndex * PageSize).Take(PageSize).ToList();
+
+            // 批11：句子位只插第 1 页最后一个槽位（槽位不够则顺延后补）；每页最多 1 句；
+            // 句子已在字词候选中出现则不插（去重铁律）。句子不是排序产物，_candidates 不受影响。
+            if (_pageIndex == 0 && _sentences.Enabled)
+            {
+                var signature = NineKey.Core.Pinyin.Signature.Of(GetQueryInput());
+                var sentence = _sentences.TryMatch(signature, _candidates.Select(c => c.Text).ToList());
+                if (sentence is not null)
+                {
+                    var slot = new Candidate(sentence, CandidateSource.SentenceMemory, 0, null);
+                    if (page.Count >= PageSize)
+                    {
+                        page[PageSize - 1] = slot;
+                    }
+                    else
+                    {
+                        page.Add(slot);
+                    }
+                }
+            }
+
             return page;
         }
     }
 
     /// <summary>候选总数（供 UI 显示 "3/12"）。</summary>
     public int TotalCount => _candidates.Count;
+
+    /// <summary>是否有可上屏候选（排除拼音引导项）：空格上屏与标点顶屏的判定依据。</summary>
+    public bool HasRealCandidate => _candidates.Any(c => c.Source != CandidateSource.PinyinGuide);
 
     /// <summary>数字键输入。</summary>
     public void AppendDigit(char digit)
@@ -219,7 +270,7 @@ public sealed class KeyController
             if (_touchColumns.Count > 0)
             {
                 _touchColumns.RemoveAt(_touchColumns.Count - 1);
-            _pinnedLetters.Remove(_touchColumns.Count);
+                _pinnedLetters.Remove(_touchColumns.Count);
             }
 
             if (_buffer.IsEmpty)
@@ -305,8 +356,66 @@ public sealed class KeyController
     /// <summary>直接上屏（标点/空格/数字 1 等不走候选）。</summary>
     public void CommitDirect(string text)
     {
+        // 批11：标点=结算成句，普通文本=追加进运行缓冲。此处无候选拼音上下文，
+        // 直接上屏的字母串本身就是拼音（Signature.Of(字母) 与后续同串查询同源）。
+        RecordInjected(text, text);
         _injector.InjectText(text);
         ClearInput();
+    }
+
+    /// <summary>
+    /// 批11 结算连打运行缓冲（触发②缓冲清空 / 触发③停顿 3 秒由壳层计时器调用；触发①标点走 RecordInjected）。
+    /// 去掉尾部标点后交给句库按门槛（4-12 字、音节数≥2）判定入库，无论成败都清空缓冲。
+    /// </summary>
+    public void SettleRunBuffer()
+    {
+        var text = _runBuffer.ToString();
+        var pinyin = _runPinyin.ToString();
+        _runBuffer.Clear();
+        _runPinyin.Clear();
+        if (text.Length == 0)
+        {
+            return;
+        }
+
+        var trimmed = text.TrimEnd(PunctuationChars);
+        if (trimmed.Length == 0)
+        {
+            return;
+        }
+
+        // ⚠ 坑：签名必须由**拼音**算。句库按签名匹配，若拿汉字去算，Signature.Of 对非字母字符原样返回，
+        // 得到的是永远匹配不上的伪签名（批11 根因：句库进了数据却查不出来）。
+        _sentences.TryAdd(trimmed, Signature.Of(pinyin));
+    }
+
+    /// <summary>批11：丢弃运行缓冲与累计拼音（关开关/清空句库/提交句子候选时用，避免半句残留或重复回喂）。</summary>
+    public void DiscardRunBuffer()
+    {
+        _runBuffer.Clear();
+        _runPinyin.Clear();
+    }
+
+    /// <summary>批11：上屏文本进运行缓冲（正文 + 对应拼音）；纯标点则结算成句（连续打出的字中间不含标点即一句）。</summary>
+    private void RecordInjected(string text, string pinyin)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        if (text.All(c => Array.IndexOf(PunctuationChars, c) >= 0))
+        {
+            SettleRunBuffer();
+            return;
+        }
+
+        // 只收"字/词/字母串"：纯数字等无意义片段不入句（避免把 T9 数字喂进句库）
+        if (text.Any(c => c > 127 || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')))
+        {
+            _ = _runBuffer.Append(text);
+            _ = _runPinyin.Append(pinyin);   // ⚠ 正文与拼音必须成对追加，少一边签名就与文本错位
+        }
     }
 
     /// <summary>
@@ -322,6 +431,17 @@ public sealed class KeyController
             return;
         }
 
+        // 批11：句子候选=普通上屏（简繁转换由注入器负责）+ 计数，但**不回喂 LearnFromCommit**（防权重污染）
+        if (candidate.Source == CandidateSource.SentenceMemory)
+        {
+            _injector.InjectText(candidate.Text);
+            _sentences.Touch(candidate.Text);
+            DiscardRunBuffer();   // 句子已代表本次连打，正文与拼音都不能再回喂，否则计数翻倍
+            ClearInput();
+            StateChanged?.Invoke();
+            return;
+        }
+
         var prefixOffset = PrefixOffsetBeforeActiveSyllable();
         var consumed = candidate.ConsumedKeys;
         if (consumed <= 0)
@@ -333,6 +453,8 @@ public sealed class KeyController
         if (totalConsumed >= _buffer.Letters.Length)
         {
             // ⚠ 坑：候选覆盖全部剩余缓冲时直接完整提交，不能遗留空缓冲造成状态不一致。
+            // 批11：正文进运行缓冲，拼音传整段缓冲（此分支就是整段消费），签名才与查询侧同源。
+            RecordInjected(candidate.Text, _buffer.Letters);
             _injector.InjectText(candidate.Text);
             _engine.LearnFromCommit(candidate.Text, candidate.Pinyin);
             _history.Remove(candidate.Text);
@@ -376,7 +498,7 @@ public sealed class KeyController
         StateChanged?.Invoke();
     }
 
-    /// <summary>回车（§13.5）：缓冲非空 = 提交首选候选（无候选时提交字母串）；缓冲为空 = 发送 VK_RETURN。</summary>
+    /// <summary>上屏首选候选（标点顶屏与空格上屏走这里）：缓冲非空 = 提交首选候选（无候选时提交字母串）；缓冲为空 = 发送 VK_RETURN。</summary>
     public void CommitEnter()
     {
         if (_buffer.IsEmpty)
@@ -395,12 +517,77 @@ public sealed class KeyController
             return;
         }
 
+        RecordInjected(_buffer.Letters, _buffer.Letters);   // 批11：原样上屏的字母串=正文与拼音同串（CommitEnter 的兜底路）
+        _injector.InjectText(_buffer.Letters);
+        ClearInput();
+    }
+
+    /// <summary>
+    /// 回车键本体：缓冲非空 = 原样上屏字母串（不看候选）；缓冲为空 = 发送 VK_RETURN。
+    /// ⚠ 与 CommitEnter 区分：CommitEnter 是"上屏首选候选"（标点顶屏/空格上屏用），本方法只服务回车键。
+    /// </summary>
+    public void CommitLettersOrEnter()
+    {
+        if (_buffer.IsEmpty)
+        {
+            _injector.InjectEnter();
+            return;
+        }
+
+        RecordInjected(_buffer.Letters, _buffer.Letters);   // 批11：原样上屏的字母串=正文与拼音同串（CommitLettersOrEnter 路）
         _injector.InjectText(_buffer.Letters);
         ClearInput();
     }
 
     /// <summary>空格键（§13.5）：发送 VK_SPACE，与 0 键职责分离，永不输出字符 '0'。</summary>
     public void CommitSpace() => _injector.InjectSpace();
+
+    /// <summary>该候选是否来自用户词（长按菜单据此决定"删除"是否可用；系统词只有置顶/取消）。</summary>
+    public bool IsUserWord(Candidate candidate) =>
+        candidate is not null && !string.IsNullOrEmpty(candidate.Text) && _userDict.GetCount(candidate.Text) > 0;
+
+    /// <summary>
+    /// 删除错词（长按候选→删除）：**无黑名单**——从用户词典物理移除条目 + 落盘，并让引擎把索引里的
+    /// 用户来源条目移除、回填学习前的系统本体条目，然后立即刷新候选。
+    /// 语义：系统同字词删除后回落为系统候选（恢复出厂行为，签名照常打出，仅失去用户加权）；
+    /// 纯用户词因条目不存在而自然消失。
+    /// </summary>
+    public bool RemoveUserWord(Candidate candidate)
+    {
+        if (candidate is null || string.IsNullOrEmpty(candidate.Text))
+        {
+            return false;
+        }
+
+        var removed = _engine.ForgetUserWord(candidate.Text);
+        _pageIndex = 0;
+        RefreshCandidates();
+        StateChanged?.Invoke();
+        return removed;
+    }
+
+    /// <summary>
+    /// 置顶候选（长按候选→置顶）：用户词学习次数封顶 + 走一次 Learn 让引擎把封顶权重写回索引 + 立即刷新。
+    /// </summary>
+    public bool PinCandidate(Candidate candidate)
+    {
+        if (candidate is null || string.IsNullOrEmpty(candidate.Text))
+        {
+            return false;
+        }
+
+        if (!_userDict.Pin(candidate.Text, candidate.Pinyin))
+        {
+            return false;
+        }
+
+        _userDict.Save();
+        _engine.LearnFromCommit(candidate.Text, candidate.Pinyin); // Learn 已封顶，作用是把封顶权重 Upsert 回索引
+        _pageIndex = 0;
+        RefreshCandidates();
+        StateChanged?.Invoke();
+        return true;
+    }
 
     public void NextPage()
     {

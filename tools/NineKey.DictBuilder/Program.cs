@@ -40,6 +40,14 @@ public static class Program
         {
             ParsePhraseTable(thuoclFile, entries, stats);
         }
+        // THUOCL 长尾 LLM 辅助拼音通道：词取 THUOCL 词表长尾（事实数据，DF 丢弃），拼音由本机 LLM 生成并过四道校验；
+        // 生成脚本 tools/thuocl_llm_pinyin.py，台账见 docs/DICT_LICENSES.md。
+        var thuoclLlmFile = Path.Combine(rawDir, "thuocl_llm_pinyin.txt");
+        if (File.Exists(thuoclLlmFile))
+        {
+            ParsePhraseTable(thuoclLlmFile, entries, stats);
+        }
+
         ParseJiebaSupplement(entries, stats);
 
         if (!Validate(entries, out var validationErrors))

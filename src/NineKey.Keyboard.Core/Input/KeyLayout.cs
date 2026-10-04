@@ -1,5 +1,5 @@
-// 本文件职责：T9 键位字母与方向映射的唯一真源，决定每个数字键中心字与四方向槽。
-// 数据流位置：KeyLayout.Keys → KeyboardWindow 初始化 KeyButton → FlickGestureRecognizer 解析方向槽。
+﻿// 本文件职责：T9 键位字母与方向映射的唯一真源，决定每个数字键中心字与四方向槽。
+// 数据流位置：KeyLayout.Keys → KeyboardWindow 初始化 KeyButton → 键面小字与槽位标注（Flick 已移除，槽位纯展示）。
 // ⚠ 坑 1：三字母键点按等价于左滑，中心字与 Left 槽必须一致，否则点按与左滑结果不同（§13.17）。
 // ⚠ 坑 2：四字母键 7/9 中心字不能滑出，因此 Center 只用于点按，不在 Slots 中重复（§13.17）。
 // ⚠ 坑 3：CommitDirect=true 的键（1/0）直接上屏，不走候选流程，与拼音键逻辑完全不同。

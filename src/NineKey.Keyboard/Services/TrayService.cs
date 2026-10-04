@@ -24,6 +24,9 @@ public sealed class TrayService : IDisposable
     private readonly ToolStripMenuItem _shortcutBarItem;
     private readonly ToolStripMenuItem _editRowItem;
     private readonly ToolStripMenuItem _symbolRowItem;
+    private readonly ToolStripMenuItem _spaceCommitItem;
+    private readonly ToolStripMenuItem _keyClickItem;
+    private readonly ToolStripMenuItem _sentenceMemoryItem;
 
     private readonly ToolStripMenuItem _fuzzyZhiZuItem;
     private readonly ToolStripMenuItem _fuzzyChiCuItem;
@@ -58,6 +61,14 @@ public sealed class TrayService : IDisposable
     public event Action<bool>? ShortcutBarToggled;
     public event Action<bool>? EditRowToggled;
     public event Action<bool>? SymbolRowToggled;
+    public event Action<bool>? SpaceCommitToggled;
+    public event Action<bool>? KeyClickToggled;
+
+    /// <summary>句子记忆开关（批11）：关=零记录零查询。</summary>
+    public event Action<bool>? SentenceMemoryToggled;
+
+    /// <summary>清空句子记忆（批11）：删文件 + 清内存 + 立即生效。</summary>
+    public event Action? ClearSentenceMemoryRequested;
 
     //public event Action<int>? BubbleDelayChanged;//气泡事件申明
     //public event Action<int>? BubbleShowChanged;//气泡事件申明
@@ -130,6 +141,10 @@ public sealed class TrayService : IDisposable
         _shortcutBarItem = AddToggle(inputMenu.DropDown, "快捷键行", on => ShortcutBarToggled?.Invoke(on));
         _editRowItem = AddToggle(inputMenu.DropDown, "26 键编辑行", on => EditRowToggled?.Invoke(on));
         _symbolRowItem = AddToggle(inputMenu.DropDown, "26 键符号行", on => SymbolRowToggled?.Invoke(on));
+        _spaceCommitItem = AddToggle(inputMenu.DropDown, "空格上屏首选", on => SpaceCommitToggled?.Invoke(on));
+        _keyClickItem = AddToggle(inputMenu.DropDown, "按键音", on => KeyClickToggled?.Invoke(on));
+        _sentenceMemoryItem = AddToggle(inputMenu.DropDown, "句子记忆", on => SentenceMemoryToggled?.Invoke(on));
+        _ = inputMenu.DropDownItems.Add("清空句子记忆", null, (_, _) => ClearSentenceMemoryRequested?.Invoke());
 		
         /* ---- 气泡时序（§13.33）----
         var bubbleMenu = new ToolStripMenuItem("气泡时序");
@@ -232,6 +247,7 @@ public sealed class TrayService : IDisposable
 
         // ---- 宏管理（§13.28）----
         var macroMenu = new ToolStripMenuItem("宏管理");
+        _ = macroMenu.DropDownItems.Add(new ToolStripMenuItem("文本型宏＝常用语，一键发送整句") { Enabled = false });
         _ = macroMenu.DropDownItems.Add("编辑宏...", null, (_, _) => EditMacrosRequested?.Invoke());
         _macroBarItem = AddToggle(macroMenu.DropDown, "显示宏键行", on => MacroBarToggled?.Invoke(on));
         _ = menu.Items.Add(macroMenu);
@@ -332,7 +348,7 @@ public sealed class TrayService : IDisposable
     /// <summary>宿主同步设置状态（菜单打开时调用，不回环触发事件）。</summary>
     public void SyncState(
         bool autoPopup, bool hotkey, bool startup, bool touchKbGuard, bool shortcutBar, bool macroBar,
-        bool editRow, bool symbolRow,
+        bool editRow, bool symbolRow, bool spaceCommitsCandidate, bool keyClickSound, bool sentenceMemory,
         bool fuzzyZhiZu, bool fuzzyChiCu, bool fuzzyShiSu, bool fuzzyNiLi, bool fuzzyRiLi,
         bool fuzzyFuHu, bool fuzzyAnAng, bool fuzzyEnEng, bool fuzzyInIng,
         double bgOpacity, double keyOpacity)
@@ -347,6 +363,9 @@ public sealed class TrayService : IDisposable
         _macroBarItem.Checked = macroBar;
         _editRowItem.Checked = editRow;
         _symbolRowItem.Checked = symbolRow;
+        _spaceCommitItem.Checked = spaceCommitsCandidate;
+        _keyClickItem.Checked = keyClickSound;
+        _sentenceMemoryItem.Checked = sentenceMemory;
 
         _fuzzyZhiZuItem.Checked = fuzzyZhiZu;
         _fuzzyChiCuItem.Checked = fuzzyChiCu;

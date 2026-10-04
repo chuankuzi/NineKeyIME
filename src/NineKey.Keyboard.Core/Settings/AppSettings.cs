@@ -94,6 +94,12 @@ public sealed class AppSettings : INotifyPropertyChanged
     /// <summary>自动弹出（§2.6/W10）：焦点进入可编辑控件时自动显示键盘。默认开（W10 修订，与系统触摸键盘行为一致）。</summary>
     public bool AutoPopup { get; set; } = true;
 
+    /// <summary>空格上屏首选：缓冲非空时空格提交首选候选，缓冲为空时空格正常上屏（手机输入法标点顶屏同源的标配行为）。默认开。</summary>
+    public bool SpaceCommitsCandidate { get; set; } = true;
+
+    /// <summary>按键音：按键按下播 40ms 短促提示音（默认关，托盘「输入设置→按键音」切换）。</summary>
+    public bool KeyClickSound { get; set; }
+
     /// <summary>§13.31 简繁输出：true=上屏时转繁体（OpenCC s2t，托盘"其他→简繁输出"切换）。</summary>
     public bool TraditionalOutput { get; set; }
 
@@ -124,6 +130,9 @@ public sealed class AppSettings : INotifyPropertyChanged
 	public bool ShowNumberRow { get; set; } = true;
 	
 	public bool SymbolRowFullWidth { get; set; }
+
+    /// <summary>最近使用的符号（MRU，最多 8 个）：1 键符号选框"最近"行的数据源，点选符号后更新并立即落盘。</summary>
+    public List<string> RecentSymbols { get; set; } = [];
 
     /// <summary>自定义宏列表（§13.28），上限 8 个。</summary>
     public List<Macro> Macros { get; set; } = [];
@@ -161,6 +170,9 @@ public sealed class AppSettings : INotifyPropertyChanged
     public bool FuzzyEnEng { get; set; }
 
     public bool FuzzyInIng { get; set; }
+
+    /// <summary>句子记忆（批11）：关 = 零记录零查询（运行缓冲也不记）。默认开。</summary>
+    public bool SentenceMemoryEnabled { get; set; } = true;
 
     /// <summary>由当前设置构建模糊音配置（§8 M7）。</summary>
     public NineKey.Core.Pinyin.FuzzyProfile ToFuzzyProfile() => new()

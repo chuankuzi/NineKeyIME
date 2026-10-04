@@ -15,4 +15,12 @@
       <TargetPath>dict\lexicon.bin.gz</TargetPath>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <!-- 安装包合规：licenses/ 下全部许可全文随发布输出进入安装目录（tools/ninekey_setup.iss 打包 SourceDir\*） -->
+    <None Include="..\..\licenses\*.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <TargetPath>licenses\%(Filename)%(Extension)</TargetPath>
+    </None>
+  </ItemGroup>
 </Project>

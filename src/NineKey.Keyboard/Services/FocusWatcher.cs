@@ -13,7 +13,6 @@ namespace NineKey.Keyboard.Services;
 /// UIA 焦点监听（§2.6 自动弹出 + §13.16 误报控制）：300ms 轮询 AutomationElement.FocusedElement。
 /// 保守判定：仅 ControlType ∈ {Edit, Document} 且启用的元素才判可编辑；可疑（TextPattern 复合控件）默认不弹。
 /// 去抖：同一元素同一判定不重复上报；W9/手动隐藏后由宿主 ResetDebounce 允许重新弹出（兼容 P1-11）。
-/// 留痕：每次判定弹出写入日志（ControlType/ClassName/进程名，§13.16）。
 /// 已知边界（§2.6）：无 UIA 信息的自绘输入框检测不到，与系统触摸键盘同一处境，不做兼容。
 /// </summary>
 public sealed class FocusWatcher : IDisposable
@@ -91,36 +90,8 @@ public sealed class FocusWatcher : IDisposable
 
         _lastKey = key;
         _lastReportedEditable = editable;
-        if (editable)
-        {
-            FileLogger.Info($"auto-popup: {Describe(el)}");
-        }
-        else
-        {
-            FileLogger.Info($"非编辑控件获得焦点: {Describe(el)}");
-        }
 
         EditableFocusChanged?.Invoke(editable);
-    }
-
-    /// <summary>留痕内容：ControlType/ClassName/进程名（§13.16）。</summary>
-    internal static string Describe(AutomationElement el)
-    {
-        var process = "?";
-        try
-        {
-            process = System.Diagnostics.Process.GetProcessById(el.Current.ProcessId).ProcessName;
-        }
-        catch (InvalidOperationException)
-        {
-            // 进程已退出
-        }
-        catch (System.ComponentModel.Win32Exception)
-        {
-            // 无权查询
-        }
-
-        return $"ct={el.Current.ControlType.ProgrammaticName} class={el.Current.ClassName} proc={process}";
     }
 
     /// <summary>§13.16 保守判定：仅 Edit/Document 且启用；TextPattern 复合控件等可疑元素一律不弹。</summary>

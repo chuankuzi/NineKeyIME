@@ -41,8 +41,8 @@
     </UserControl.Resources>
     <Border Background="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=BarBackground}"
             CornerRadius="8"
-            Height="48"
-            Margin="4,2">
+            Height="40"
+            Margin="8,2">
         <DockPanel LastChildFill="True">
             <TextBlock x:Name="CountLabel"
                     DockPanel.Dock="Right"

@@ -7,7 +7,9 @@
 
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Threading;
 using System.Windows.Media;
 using NineKey.Core.Engine;
 using NineKey.Keyboard.Input;
@@ -24,6 +26,12 @@ public partial class CandidateBar : UserControl
     public CandidateBar()
     {
         InitializeComponent();
+
+        // 批5 滑动手势：Preview（隧道）级接入，触摸与鼠标**共用同一套判定**（同一控制器实例）。
+        // ⚠ 坑：候选按钮会 CaptureMouse，Move/Up 只保证送到按钮自身；所以候选条与每个候选按钮**双通道**
+        // 都接同一套处理器，由控制器的 _consumed 保证同一手势只翻一页。
+        AttachGesture(this);
+        EnsureCandidateMenu();
     }
 
     /// <summary>用户点击某个候选时触发。</summary>
@@ -61,6 +69,8 @@ public partial class CandidateBar : UserControl
     /// <param name="controller">输入控制器，提供候选、翻页、历史上屏。</param>
     public void Render(KeyController controller)
     {
+        _controller = controller; // 长按菜单直接调它的删词/置顶（避免为接线去动 KeyboardWindow）
+
         // ⚠ 坑：不清空会累积旧候选，翻页时尤其明显。
         CandidatesPanel.Children.Clear();
 
@@ -95,7 +105,7 @@ public partial class CandidateBar : UserControl
         var btn = new Button
         {
             Content = candidate.Text,
-            Style = (Style)FindResource("CandidateButtonStyle"),
+            Style = TryFindResource("CandidateButtonStyle") as Style,
         };
         if (!isHistory && candidate.Source == CandidateSource.JianpinMatch)
         {
@@ -109,8 +119,22 @@ public partial class CandidateBar : UserControl
             btn.FontWeight = FontWeights.Bold;
         }
 
+        // 批7 长按：按住 500ms 弹小菜单（删除/置顶/取消）；位移超容差或抬手即取消。
+        AttachGesture(btn);   // 滑动与长按共用同一控制器（按钮 CaptureMouse 时也能收到 Move/Up）
+        btn.PreviewMouseLeftButtonDown += (_, _) => StartLongPress(btn, candidate);
+        btn.PreviewTouchDown += (_, _) => StartLongPress(btn, candidate);
+        btn.PreviewMouseLeftButtonUp += (_, _) => CancelLongPress();
+        btn.PreviewTouchUp += (_, _) => CancelLongPress();
+        btn.MouseLeave += (_, _) => CancelLongPress();
+
         btn.Click += (_, _) =>
         {
+            if (_longPressFired)
+            {
+                _longPressFired = false; // 长按弹过菜单：本次抬起不算点击
+                return;
+            }
+
             // ⚠ 坑：合成输入或异常路径会丢失 MouseUp，导致捕获残留，提交后必须显式释放。
             if (ReferenceEquals(Mouse.Captured, btn))
             {
@@ -120,6 +144,218 @@ public partial class CandidateBar : UserControl
             CandidateClicked?.Invoke(candidate);
         };
         return btn;
+    }
+
+    // ---- 批5：候选条滑动手势（仅候选条本体区域；水平占优且过阈值才翻页，未过阈值交还原点击逻辑）----
+
+    /// <summary>手势判定控制器（触摸与鼠标共用；纯逻辑，见 CandidateGesture.cs）。</summary>
+    private readonly CandidateGestureController _gesture = new();
+
+    private System.Windows.Point _lastPoint;
+
+    /// <summary>给元素接上触摸 + 鼠标两套 Preview 处理器（候选条与候选按钮都接，规避 CaptureMouse 抢投递）。
+    /// 两条路径都走同一组 internal 入口，测试可直调同一份代码（RaiseEvent 无法注入坐标：GetPosition 读真实光标）。</summary>
+    private void AttachGesture(System.Windows.UIElement element)
+    {
+        element.PreviewTouchDown += (_, e) => GestureDown(e.GetTouchPoint(this).Position.X, e.GetTouchPoint(this).Position.Y);
+        element.PreviewTouchMove += (_, e) => GestureMove(e.GetTouchPoint(this).Position.X, e.GetTouchPoint(this).Position.Y);
+        element.PreviewTouchUp += (_, e) => GestureUp(e.GetTouchPoint(this).Position.X, e.GetTouchPoint(this).Position.Y, () => e.Handled = true);
+        element.PreviewMouseLeftButtonDown += (_, e) => GestureDown(e.GetPosition(this).X, e.GetPosition(this).Y);
+        element.PreviewMouseMove += (_, e) => GestureMove(e.GetPosition(this).X, e.GetPosition(this).Y);
+        element.PreviewMouseLeftButtonUp += (_, e) => GestureUp(e.GetPosition(this).X, e.GetPosition(this).Y, () => e.Handled = true);
+    }
+
+    /// <summary>手势入口：按下（触摸/鼠标共用，测试直调）。</summary>
+    internal void GestureDown(double x, double y)
+    {
+        _lastPoint = new System.Windows.Point(x, y);
+        _gesture.Down(x, y);
+    }
+
+    /// <summary>手势入口：移动（触摸/鼠标共用，测试直调）。</summary>
+    internal void GestureMove(double x, double y)
+    {
+        _lastPoint = new System.Windows.Point(x, y);
+        _gesture.Move(x, y);
+    }
+
+    /// <summary>手势入口：抬起（触摸/鼠标共用，测试直调）。</summary>
+    internal void GestureUp(double x, double y, Action? markHandled = null)
+    {
+        _lastPoint = new System.Windows.Point(x, y);
+        FinishGesture(_lastPoint, markHandled ?? (() => { }));
+    }
+
+    /// <summary>测试用：让长按定时器逻辑按当前状态判定一次（等价于 500ms 到点）。</summary>
+    internal bool FireLongPressForTests() => _gesture.TryFireLongPress();
+
+    /// <summary>测试用：长按定时器的 Tick 处理器是否已挂上（批7 情况A 根因回归断言点）。</summary>
+    internal bool HasLongPressTickHandler => _longPressTickWired;
+
+    /// <summary>抬起统一出口：控制器给结论，+1 上一页 / -1 下一页 / 0 交还原点击逻辑。</summary>
+    private void FinishGesture(System.Windows.Point p, Action markHandled)
+    {
+        var verdict = _gesture.Up(p.X, p.Y);
+        if (verdict < 0)
+        {
+            PageNext?.Invoke();     // 左滑 = 下一页
+        }
+        else if (verdict > 0)
+        {
+            PagePrevious?.Invoke(); // 右滑 = 上一页
+        }
+        else
+        {
+            return;                 // 未构成滑动：不吞事件，原点击逻辑零变化
+        }
+
+        markHandled();
+    }
+
+    // ---- 批7：长按候选弹小菜单（删除 / 置顶 / 取消）----
+
+    /// <summary>长按判定时长（毫秒）：与控制器同源，避免两处漂移。</summary>
+    private const int LongPressMs = CandidateGestureController.LongPressMs;
+
+    private readonly DispatcherTimer _longPressTimer = new() { Interval = TimeSpan.FromMilliseconds(LongPressMs) };
+
+    private KeyController? _controller;
+    private Candidate? _longPressCandidate;
+    private Button? _longPressButton;
+    private bool _longPressFired;
+    private bool _longPressTickWired;
+    private Popup? _candidateMenu;
+    private System.Windows.Controls.Border? _candidateMenuBorder;
+    private Button? _menuDeleteButton;
+
+    private void StartLongPress(Button btn, Candidate candidate)
+    {
+        // ⚠ 坑（批7 情况A 根因）：菜单与 Tick 处理器原先只在 EnsureCandidateMenu 里建，而该方法是死代码
+        // （全文件零调用）→ 定时器到点没有处理器，长按永远不弹菜单。这里先确保建好再启动。
+        EnsureCandidateMenu();
+        _longPressCandidate = candidate;
+        _longPressButton = btn;
+        _longPressTimer.Stop();
+        _longPressTimer.Start();
+    }
+
+    private void CancelLongPress()
+    {
+        _longPressTimer.Stop();
+    }
+
+    private void EnsureCandidateMenu()
+    {
+        if (_candidateMenu is not null)
+        {
+            return;
+        }
+
+        _longPressTickWired = true;
+        _longPressTimer.Tick += (_, _) =>
+        {
+            _longPressTimer.Stop();
+            if (!_gesture.TryFireLongPress())
+            {
+                return;     // 已构成滑动或已触发过 → 长按让位
+            }
+
+            if (_longPressButton is null || _longPressCandidate is null)
+            {
+                return;
+            }
+
+            _longPressFired = true;
+            OpenCandidateMenu(_longPressButton, _longPressCandidate);
+        };
+
+        var stack = new System.Windows.Controls.StackPanel();
+        _menuDeleteButton = MakeMenuButton("删除", () =>
+        {
+            var c = _longPressCandidate;
+            CloseCandidateMenu();
+            if (c is not null)
+            {
+                _ = _controller?.RemoveUserWord(c);
+            }
+        });
+        var pin = MakeMenuButton("置顶", () =>
+        {
+            var c = _longPressCandidate;
+            CloseCandidateMenu();
+            if (c is not null)
+            {
+                _ = _controller?.PinCandidate(c);
+            }
+        });
+        var cancel = MakeMenuButton("取消", CloseCandidateMenu);
+        _ = stack.Children.Add(_menuDeleteButton);
+        _ = stack.Children.Add(pin);
+        _ = stack.Children.Add(cancel);
+
+        // 主题跟随：底色取候选栏底色，文字沿用 SubForeground（浅色主题不白底白字）
+        _candidateMenuBorder = new System.Windows.Controls.Border
+        {
+            Background = BarBackground,
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(2),
+            Child = stack,
+        };
+
+        // ⚠ 坑：本应用早前用 ContextMenu 做长按菜单实测不可达，故沿用已验证的 Popup 方案（1 键符号选框同款）。
+        _candidateMenu = new Popup
+        {
+            StaysOpen = false, // 点菜单外即关（外部点击被菜单吃掉，不会误上屏）
+            AllowsTransparency = true,
+            Focusable = false, // 焦点防御纪律：新控件一律不入焦点链
+            Child = _candidateMenuBorder,
+        };
+
+        if (Parent is System.Windows.Controls.Panel panel)
+        {
+            _ = panel.Children.Add(_candidateMenu);
+        }
+    }
+
+    private Button MakeMenuButton(string text, Action onClick)
+    {
+        var btn = new Button
+        {
+            Content = text,
+            Style = TryFindResource("CandidateButtonStyle") as Style,
+            Focusable = false,
+            MinWidth = 76,
+            Foreground = SubForeground,
+        };
+        btn.Click += (_, _) => onClick();
+        return btn;
+    }
+
+    private void OpenCandidateMenu(Button target, Candidate candidate)
+    {
+        if (_candidateMenu is null)
+        {
+            return;
+        }
+
+        _longPressCandidate = candidate;
+        if (_menuDeleteButton is not null)
+        {
+            // ⚠ 需求：删除仅用户词可用；系统词只有置顶/取消。
+            _menuDeleteButton.IsEnabled = _controller?.IsUserWord(candidate) ?? false;
+        }
+
+        _candidateMenu.PlacementTarget = target;
+        _candidateMenu.Placement = PlacementMode.Top;
+        _candidateMenu.IsOpen = true;
+    }
+
+    private void CloseCandidateMenu()
+    {
+        if (_candidateMenu is not null && _candidateMenu.IsOpen)
+        {
+            _candidateMenu.IsOpen = false;
+        }
     }
 
     private void NextPage_Click(object sender, RoutedEventArgs e) => PageNext?.Invoke();
