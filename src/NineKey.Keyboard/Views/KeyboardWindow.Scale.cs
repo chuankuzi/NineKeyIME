@@ -63,11 +63,66 @@ public partial class KeyboardWindow
         return scale;
     }
 
-    private static System.Drawing.Rectangle GetCurrentWorkArea()
+    // ---- 屏幕几何唯一口径 = DIP ----
+    // ⚠ 坑（Deck 1280×800 手动转横向「26键底右双边缘切割」根因）：WinForms `Screen.WorkingArea` 给的是
+    //   **物理像素**，而 WPF 的 Left/Top/Width/Height 全是 **DIP**。本进程是 PerMonitorV2，两者相差 dpiScale 倍：
+    //   100% DPI 时相等（开发机因此不复现），150% 时窗口被放大 1.5 倍并推向右下 → 底边与右边同时被切。
+    //   所以：任何喂给 WPF 几何的屏幕矩形，取到物理值后必须 ÷ 窗口 DPI 缩放。
+    private static double GetDpiScale(Window window)
     {
-        // §13.45-7：优先用 WinForms Screen 读取当前屏幕 WorkArea，避免 WPF SystemParameters 方向错误
-        var screen = System.Windows.Forms.Screen.PrimaryScreen;
-        return screen?.WorkingArea ?? new System.Drawing.Rectangle(0, 0, 1280, 720);
+        var source = PresentationSource.FromVisual(window);
+        var scale = source?.CompositionTarget?.TransformToDevice.M11 ?? 0;
+        if (scale <= 0)
+        {
+            scale = VisualTreeHelper.GetDpi(window).DpiScaleX;   // 无 PresentationSource 时退到系统/主屏 DPI
+        }
+
+        return scale > 0 ? scale : 1.0;
+    }
+
+    /// <summary>
+    /// 物理像素矩形 → DIP 矩形（100% DPI 原样返回）。抽成纯函数是为了让单测能锁住 Deck 单位口径，
+    /// 无需真机（100% DPI 开发机上物理==DIP，此路径永远走不到）。
+    /// </summary>
+    internal static System.Drawing.Rectangle ScaleToDip(System.Drawing.Rectangle physical, double dpiScale)
+    {
+        if (dpiScale <= 0 || Math.Abs(dpiScale - 1.0) < 0.001)
+        {
+            return physical;
+        }
+
+        return new System.Drawing.Rectangle(
+            (int)Math.Round(physical.X / dpiScale),
+            (int)Math.Round(physical.Y / dpiScale),
+            (int)Math.Round(physical.Width / dpiScale),
+            (int)Math.Round(physical.Height / dpiScale));
+    }
+
+    /// <summary>物理像素矩形 → DIP 矩形（取窗口当前 DPI 缩放）。</summary>
+    private static System.Drawing.Rectangle ToDip(Window window, System.Drawing.Rectangle physical) =>
+        ScaleToDip(physical, GetDpiScale(window));
+
+    /// <summary>
+    /// 构造期（句柄未生，FromHandle 用不了）的主屏 WorkArea（DIP）。
+    /// ⚠ 首选 SystemParameters.WorkArea：WPF 原生、**跟随当前方向**、且已扣掉任务栏；
+    ///   退化时才用 PrimaryScreenWidth/Height 全屏兜底（全屏高不含任务栏信息，直接当 WorkArea 会把底边压到任务栏下）。
+    /// </summary>
+    private static System.Drawing.Rectangle GetPrimaryWorkAreaDip()
+    {
+        var wa = SystemParameters.WorkArea;
+        if (wa.Width > 0 && wa.Height > 0)
+        {
+            return new System.Drawing.Rectangle((int)Math.Round(wa.X), (int)Math.Round(wa.Y), (int)Math.Round(wa.Width), (int)Math.Round(wa.Height));
+        }
+
+        var w = SystemParameters.PrimaryScreenWidth;
+        var h = SystemParameters.PrimaryScreenHeight;
+        if (w > 0 && h > 0)
+        {
+            return new System.Drawing.Rectangle(0, 0, (int)Math.Round(w), (int)Math.Round(h));
+        }
+
+        return new System.Drawing.Rectangle(0, 0, 1280, 800);   // 极端兜底：横屏安全值（原为 1280×720）
     }
 
     // ---- 三态布局状态机（§13.23：中 / 123 / EN）----
@@ -117,7 +172,9 @@ public partial class KeyboardWindow
     private void SetScaleFor(LayoutMode mode, double scale, bool? isManual = null, System.Drawing.Rectangle? workArea = null)
     {
         var s = Math.Max(GetMinScaleFor(mode), scale);
-        var work = workArea ?? GetCurrentWorkArea();
+        // ⚠ 坑：默认值曾经退回「构造期主屏」口径（GetCurrentWorkArea）——运行期调用会取错屏/错单位，
+        // 现在一律取窗口实际所在屏（已 DIP）。
+        var work = workArea ?? GetWindowWorkArea(this);
         switch (mode)
         {
             case LayoutMode.Chinese:
@@ -193,6 +250,7 @@ public partial class KeyboardWindow
         _layoutMode = mode;
         _currentScale = GetScaleFor(mode);
         ApplyModeScale();
+        LogGeometry($"mode-{mode}");   // TEMP-DIAG
 
         T9Panel.Visibility = mode == LayoutMode.Chinese ? Visibility.Visible : Visibility.Collapsed;
         NumberPanel.Visibility = mode == LayoutMode.Number ? Visibility.Visible : Visibility.Collapsed;
@@ -234,10 +292,17 @@ public partial class KeyboardWindow
 
     private static System.Drawing.Rectangle GetWindowWorkArea(Window window)
     {
-        // §13.45-7：以窗口实际所在屏幕的 WorkArea 为准
+        // §13.45-7：以窗口实际所在屏幕的 WorkArea 为准；⚠ 再统一换成 DIP（见 GetDpiScale 坑注释）
         var helper = new WindowInteropHelper(window);
+        if (helper.Handle == IntPtr.Zero)
+        {
+            // ⚠ 坑：FromHandle(IntPtr.Zero) 不报错，静默返回主屏——句柄未生时显式走构造期兜底，行为才可解释。
+            return GetPrimaryWorkAreaDip();
+        }
+
         var screen = System.Windows.Forms.Screen.FromHandle(helper.Handle);
-        return screen?.WorkingArea ?? new System.Drawing.Rectangle(0, 0, 1280, 720);
+        var physical = screen?.WorkingArea ?? new System.Drawing.Rectangle(0, 0, 1280, 800);
+        return ToDip(window, physical);
     }
 
     private void RecalculateScaleForCurrentScreen()
@@ -293,6 +358,35 @@ public partial class KeyboardWindow
             _settings.Save();
             _tray.ShowBalloon("屏幕分辨率变化", "已自动重新计算键盘尺寸");
         }
+    }
+
+    /// <summary>
+    /// 运行期显示设置变化（分辨率 / 方向 / DPI）：重算适配下限并把窗口夹回屏内。
+    /// ⚠ 坑：SystemEvents 回调不在 UI 线程，必须经 Dispatcher 回到 UI 线程再动窗口几何；关闭中直接丢弃。
+    /// </summary>
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+    {
+        if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
+        {
+            return;
+        }
+
+        Dispatcher.Invoke(() =>
+        {
+            try
+            {
+                LogGeometry("display-changed-before");   // TEMP-DIAG
+                RecalculateScaleForCurrentScreen();
+                _currentScale = GetScaleFor(_layoutMode);
+                ApplyModeScale();
+                ClampWindowToWorkArea();
+                LogGeometry("display-changed-after");    // TEMP-DIAG
+            }
+            catch (Exception ex)
+            {
+                FileLogger.Error("display-changed 重算失败", ex);
+            }
+        });
     }
 
     private bool ShouldRecalculateScale(LayoutMode mode, System.Drawing.Rectangle work)

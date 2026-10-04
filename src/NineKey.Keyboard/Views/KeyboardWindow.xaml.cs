@@ -55,8 +55,9 @@ public partial class KeyboardWindow : Window
         ArgumentNullException.ThrowIfNull(userDict);
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
-        // §13.45：先按 PrimaryScreen 初算屏幕适配下限，窗口创建后再按实际所在屏幕重算
-        var primaryWork = GetCurrentWorkArea();
+        // §13.45：句柄未生（FromHandle 用不了）时按 WPF 原生 DIP 值初算屏幕适配下限；Loaded 后按实际所在屏重算。
+        // ⚠ 坑：此处**必须**拿 DIP（GetPrimaryWorkAreaDip），拿物理像素会把下限算大 dpiScale 倍。
+        var primaryWork = GetPrimaryWorkAreaDip();
         _screenMinScaleChinese = Math.Min(1.0, ComputeScreenMinScale(ChineseDesignWidth, ChineseDesignHeight, ChineseTargetWidthRatio, primaryWork));
         _screenMinScaleNumber = Math.Min(1.0, ComputeScreenMinScale(NumberDesignWidth, NumberDesignHeight, ChineseTargetWidthRatio, primaryWork));
         _screenMinScaleEnglish = ComputeScreenMinScale(EnglishDesignWidth, EnglishDesignHeight, EnglishTargetWidthRatio, primaryWork);
@@ -74,22 +75,6 @@ public partial class KeyboardWindow : Window
         InitializeComponent();
         ApplyTheme();
 
-        // §13.45：位置优先上次保存；保存位置在吸附区或无记录时，默认居中偏下
-        var work = GetCurrentWorkArea();
-        if (_settings.Left is double left && _settings.Top is double top
-            && left >= EdgeSnapDistance
-            && top >= EdgeSnapDistance
-            && work.Height - (top + Height) >= EdgeSnapDistance)
-        {
-            Left = left;
-            Top = top;
-        }
-        else
-        {
-            Left = (work.Width - Width) / 2;
-            Top = Math.Max(EdgeSnapDistance, work.Height - Height - 40);
-        }
-
         _currentScale = GetScaleFor(LayoutMode.Chinese);
         var (designW, designH) = GetDesignSize(LayoutMode.Chinese);
         Width = designW * _currentScale;
@@ -97,6 +82,27 @@ public partial class KeyboardWindow : Window
         RootBorder.Width = designW;
         RootBorder.Height = designH;
         RootBorder.RenderTransform = new ScaleTransform(_currentScale, _currentScale);
+
+        // §13.45：位置优先上次保存；保存位置在吸附区或无记录时，默认居中偏下。
+        // ⚠ 坑：本块必须在**应用缩放之后**——原来用 XAML 的 480×337 算 Top，与随后真实尺寸不一致；
+        // 小屏上（Steam Deck 1280×800）首启就会把底边压出屏，与 DPI 单位错误叠加即"底右双边缘切割"。
+        var work = GetPrimaryWorkAreaDip();
+        if (_settings.Left is double left && _settings.Top is double top
+            && left >= EdgeSnapDistance
+            && top >= EdgeSnapDistance
+            && work.Width - (left + Width) >= EdgeSnapDistance
+            && work.Height - (top + Height) >= EdgeSnapDistance)
+        {
+            Left = left;
+            Top = top;
+        }
+        else
+        {
+            Left = Math.Max(0, (work.Width - Width) / 2);
+            Top = Math.Max(EdgeSnapDistance, work.Height - Height - 40);
+        }
+
+        LogGeometry("ctor-first");   // TEMP-DIAG
 
         // ⚠ 坑：合成输入/极端情况下 MouseUp 丢失会导致鼠标捕获永久卡在某个控件上，
         // 之后所有点击都被路由到该控件（键盘表现为"完全无法输入"）。
@@ -382,7 +388,12 @@ public partial class KeyboardWindow : Window
             _currentScale = GetScaleFor(_layoutMode);
             ApplyModeScale();
             ClampWindowToWorkArea();   // 切模式后重新夹紧：宽了往左挪，不超出屏幕
-           
+            LogGeometry("loaded-after-recalc");   // TEMP-DIAG
+
+            // 运行期分辨率/方向变化（Deck 手动转横向即走这条）：WM_DISPLAYCHANGE 后必须重算 + 夹回屏内，
+            // 否则窗口仍按旧方向尺寸摆放 → 底边/右边被切。退订在 OnClosed。
+            Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+
             // §13.45-5：启动必须展开为完整键盘，禁止出生即成细条
             if (IsDockedAsStrip)
             {
@@ -939,6 +950,8 @@ public partial class KeyboardWindow : Window
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        // ⚠ 坑：SystemEvents 是静态事件，不退订会把窗口（及其 Dispatcher）钉在内存里。
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
         _flashTimer.Stop();
         _fgTracker.Stop();
         _selectionTracker.Stop();

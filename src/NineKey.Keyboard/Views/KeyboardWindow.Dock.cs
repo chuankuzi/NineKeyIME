@@ -125,6 +125,7 @@ public partial class KeyboardWindow
 
         Left = Math.Max(work.Left, Math.Min(Left, work.Right - Width));
         Top = Math.Max(work.Top, Math.Min(Top, work.Bottom - Height));
+        LogGeometry("clamp");   // TEMP-DIAG
     }
 
     private void TrySnapToEdges()
@@ -175,10 +176,12 @@ public partial class KeyboardWindow
 
         EnterDockedState();
 
-        // ⚠ 坑：贴边计算必须用窗口实际所在屏幕 WorkArea，SystemParameters.WorkArea 只返回主屏。
-        var work = SystemParameters.WorkArea;
+        // ⚠ 坑（2026-10-04 修）：这里原来残留 SystemParameters.WorkArea——它与上行注释自相矛盾，
+        // 只返回**主屏**（多屏/副屏贴到错屏），且未走 DIP 口径统一。贴边计算一律用窗口实际所在屏的 WorkArea（已 DIP）。
+        var work = GetWindowWorkArea(this);
         var stripTop = Math.Max(work.Top, Math.Min(Top, work.Bottom - DockedStripHeight));
         var target = new Rect(work.Right - DockedStripWidth, stripTop, DockedStripWidth, DockedStripHeight);
+        LogGeometry("dock-target");   // TEMP-DIAG
 
         RootBorder.Visibility = Visibility.Collapsed;
         RightEdgeStrip.Visibility = Visibility.Visible;
@@ -237,6 +240,7 @@ public partial class KeyboardWindow
             }
 
             ClampWindowToWorkArea(); // 兜底：展开后若超出屏幕工作区则夹回（窗口被挪属正常）
+            LogGeometry("expanded");   // TEMP-DIAG
         });
     }
 

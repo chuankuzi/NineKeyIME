@@ -551,7 +551,8 @@ public partial class KeyboardWindow
                 English26EditRow.Height = double.NaN;
                 Height = ExpandedWindowHeight();
                 RootBorder.Height = ExpandedDesignHeight();
-                Top = Math.Max(SystemParameters.WorkArea.Top, Top - dh);
+                // ⚠ 坑：改窗口上边必须先夹到 WorkArea 顶（同口径 DIP、同屏幕），否则副屏上会被拉到主屏顶。
+                Top = Math.Max(GetWindowWorkArea(this).Top, Top - dh);
                 _isEditRowExpanded = true;
                 return;
             }
