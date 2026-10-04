@@ -107,6 +107,7 @@ public partial class KeyboardWindow : Window
         // ⚠ 坑：合成输入/极端情况下 MouseUp 丢失会导致鼠标捕获永久卡在某个控件上，
         // 之后所有点击都被路由到该控件（键盘表现为"完全无法输入"）。
         // 在窗口级 PreviewMouseDown 强制释放残留捕获：此刻新按下尚未开始拖拽，释放是安全的。
+        // 批 fix/topmost-reassert：同一处理器里顺手重断言置顶（任意键按下即回到置顶组最上，不抢焦点）。
         Mouse.AddPreviewMouseDownHandler(this, (_, e) =>
         {
             var captured = Mouse.Captured;
@@ -114,6 +115,8 @@ public partial class KeyboardWindow : Window
             {
                 captured.ReleaseMouseCapture();
             }
+
+            ReassertTopmost("mouse-down");
         });
 
         // 按键接线：字母布局取自 KeyLayout（唯一真源，§13.9 方向映射）
@@ -415,6 +418,9 @@ public partial class KeyboardWindow : Window
             {
                 _lastExternalForeground = fg;
             }
+
+            // 批 fix/topmost-reassert：同一个 500ms 心跳兼做置顶兜底（复用既有计时器，不新起线程/计时器）。
+            TopmostPollTick();
         };
         _fgTracker.Start();
         _selectionTracker.Tick += (_, _) => UpdateCopyButtonState();
@@ -457,6 +463,10 @@ public partial class KeyboardWindow : Window
         var style = NativeMethods.GetWindowLongPtr(helper.Handle, NativeMethods.GwlExStyle);
         _ = NativeMethods.SetWindowLongPtr(helper.Handle, NativeMethods.GwlExStyle,
             style | NativeMethods.WsExNoActivate | NativeMethods.WsExToolWindow);
+
+        // 批 fix/topmost-reassert：XAML 的 Topmost=True 是在窗口创建时生效的，而上面刚改过 exstyle；
+        // 样式落定后显式再断言一次置顶（Deck 上"键盘被 LM Studio 压住"的可疑点之一就是这一拍丢位置）。
+        ReassertTopmost("source-init");
 
         // §13.22：Raw Input 全局捕获触控按下
         _ = _rawTouchWatcher.Register(helper.Handle);

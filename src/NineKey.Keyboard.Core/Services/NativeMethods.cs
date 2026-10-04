@@ -19,6 +19,18 @@ public static class NativeMethods
     public const int GwlExStyle = -20;
     public const nint WsExNoActivate = 0x08000000;
     public const nint WsExToolWindow = 0x00000080;
+    public const nint WsExTopmost = 0x00000008;
+
+    // ---- 置顶重断言（批 fix/topmost-reassert）----
+    // ⚠ 坑：HWND_TOPMOST 是 (HWND)-1；SWP_NOACTIVATE 必须带——重断言只许动 z 序，绝不许抢焦点。
+    public static readonly nint HwndTopmost = new(-1);
+    public const uint SwpNoSize = 0x0001;
+    public const uint SwpNoMove = 0x0002;
+    public const uint SwpNoActivate = 0x0010;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
     // ---- 鼠标激活控制（§W5 / M8-6：NOACTIVATE 窗口被点击时仍须收到鼠标消息）----
     public const int WmMouseActivate = 0x0021;
