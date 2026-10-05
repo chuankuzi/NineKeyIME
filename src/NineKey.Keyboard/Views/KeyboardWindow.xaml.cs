@@ -106,7 +106,6 @@ public partial class KeyboardWindow : Window
             Top = Math.Max(EdgeSnapDistance, work.Height - Height - 40);
         }
 
-        LogGeometry("ctor-first");   // TEMP-DIAG
 
         // ⚠ 坑：合成输入/极端情况下 MouseUp 丢失会导致鼠标捕获永久卡在某个控件上，
         // 之后所有点击都被路由到该控件（键盘表现为"完全无法输入"）。
@@ -410,7 +409,6 @@ public partial class KeyboardWindow : Window
             _currentScale = GetScaleFor(_layoutMode);
             ApplyModeScale();
             ClampWindowToWorkArea();   // 切模式后重新夹紧：宽了往左挪，不超出屏幕
-            LogGeometry("loaded-after-recalc");   // TEMP-DIAG
 
             // 运行期分辨率/方向变化（Deck 手动转横向即走这条）：WM_DISPLAYCHANGE 后必须重算 + 夹回屏内，
             // 否则窗口仍按旧方向尺寸摆放 → 底边/右边被切。退订在 OnClosed。

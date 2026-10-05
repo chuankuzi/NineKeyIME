@@ -262,7 +262,6 @@ public partial class KeyboardWindow
         _layoutMode = mode;
         _currentScale = GetScaleFor(mode);
         ApplyModeScale();
-        LogGeometry($"mode-{mode}");   // TEMP-DIAG
 
         T9Panel.Visibility = mode == LayoutMode.Chinese ? Visibility.Visible : Visibility.Collapsed;
         NumberPanel.Visibility = mode == LayoutMode.Number ? Visibility.Visible : Visibility.Collapsed;
@@ -387,12 +386,10 @@ public partial class KeyboardWindow
         {
             try
             {
-                LogGeometry("display-changed-before");   // TEMP-DIAG
                 RecalculateScaleForCurrentScreen();
                 _currentScale = GetScaleFor(_layoutMode);
                 ApplyModeScale();
                 ClampWindowToWorkArea();
-                LogGeometry("display-changed-after");    // TEMP-DIAG
             }
             catch (Exception ex)
             {

@@ -335,9 +335,14 @@ public class KeyButton : Control
         _lastTouchUp = now;
         _touchFilter.RecordTouchUp(now, new TouchPoint2D(pos.X, pos.Y));
 
-        // 批 2026-10-05（冻结区 A 方案：只加观测，判定未改）：捕获丢失时**只复位不提交**（必要，否则会误提交），
-        // 但它静默——`pressPending=true` 就是"按下去却没有结果"的现场（第三条静默丢弃路径）。
-        FileLogger.Info($"key-drop[lost-capture]: key={Digit} pos=({pos.X:F1},{pos.Y:F1}) pressPending={_pressPending}");
+        // ⚠ 坑（2026-10-06 收尾）：Deck 实测这条在触摸下会刷出几十行 `pressPending=False` 的**纯噪声**——
+        // 捕获丢失时本来就没有待提交的按下，属正常现象。只在**真有按下被丢掉**（pressPending=true）时记一行：
+        // 既保住"按下去却没结果"的现场证据，又不把日志刷满。
+        if (_pressPending)
+        {
+            FileLogger.Info($"key-drop[lost-capture]: key={Digit} pos=({pos.X:F1},{pos.Y:F1})");
+        }
+
         ResetPressState();
     }
 

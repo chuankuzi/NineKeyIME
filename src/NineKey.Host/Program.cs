@@ -70,6 +70,13 @@ public static class Program
         };
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
+            // ⚠ 坑（2026-10-06）：退出阶段 CRT 模块反初始化会抛 DllNotFoundException（__std_type_info_destroy_list /
+            // _app_exit_callback），与应用逻辑无关也无从修复，却在 Deck 日志里每次退出都冒一行 ERROR ⇒ 关机阶段不记。
+            if (Environment.HasShutdownStarted || e.ExceptionObject is DllNotFoundException)
+            {
+                return;
+            }
+
             FileLogger.Error($"appdomain-unhandled: {e.ExceptionObject}");
         };
 

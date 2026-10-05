@@ -125,7 +125,6 @@ public partial class KeyboardWindow
 
         Left = Math.Max(work.Left, Math.Min(Left, work.Right - Width));
         Top = Math.Max(work.Top, Math.Min(Top, work.Bottom - Height));
-        LogGeometry("clamp");   // TEMP-DIAG
     }
 
     private void TrySnapToEdges()
@@ -181,7 +180,6 @@ public partial class KeyboardWindow
         var work = GetWindowWorkArea(this);
         var stripTop = Math.Max(work.Top, Math.Min(Top, work.Bottom - DockedStripHeight));
         var target = new Rect(work.Right - DockedStripWidth, stripTop, DockedStripWidth, DockedStripHeight);
-        LogGeometry("dock-target");   // TEMP-DIAG
 
         RootBorder.Visibility = Visibility.Collapsed;
         RightEdgeStrip.Visibility = Visibility.Visible;
@@ -240,7 +238,6 @@ public partial class KeyboardWindow
             }
 
             ClampWindowToWorkArea(); // 兜底：展开后若超出屏幕工作区则夹回（窗口被挪属正常）
-            LogGeometry("expanded");   // TEMP-DIAG
         });
     }
 
