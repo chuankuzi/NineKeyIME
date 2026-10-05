@@ -113,16 +113,21 @@ public partial class KeyboardWindow
         }
     }
 
-    private void ToggleKey1SymbolPopup()
+    /// <summary>
+    /// 呼出 1 键符号选框（**幂等**：按一次一定出现/保持）。
+    /// ⚠ 坑（2026-10-04 修）：原实现是 `IsOpen = !IsOpen`（Toggle）——同一颗键连按两次就"开了又关"，
+    /// 用户实感是"这次没呼出标点"。本机实测连点 10 次只有 5 次可见弹窗，且完全交替（开→关→开→关…）。
+    /// 关闭仍走既有路径：点选框外即关（StaysOpen=false）/ 选中符号 / 切模式 / 贴边收起。
+    /// </summary>
+    private void ShowKey1SymbolPopup()
     {
-        if (_key1Popup is not null)
+        if (_key1Popup is null)
         {
-            _key1Popup.IsOpen = !_key1Popup.IsOpen;
-            if (_key1Popup.IsOpen)
-            {
-                RefreshRecentSymbolRow();
-            }
+            return;
         }
+
+        _key1Popup.IsOpen = true;
+        RefreshRecentSymbolRow();
     }
 
     private void CloseKey1SymbolPopup()

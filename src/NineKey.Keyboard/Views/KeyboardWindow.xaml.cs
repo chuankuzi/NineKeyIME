@@ -507,7 +507,7 @@ public partial class KeyboardWindow : Window
         // 九键 1 键：点按弹符号选框（借鉴百度九宫格"点 1 出更多符号"），不再直出 "1"；数字输入走 123 面板。
         if (info.CommitDirect && info.Value == "1" && _layoutMode == LayoutMode.Chinese)
         {
-            ToggleKey1SymbolPopup();
+            ShowKey1SymbolPopup();   // 幂等呼出（原 Toggle：同键再按即关，实感"这次没呼出"）
             return;
         }
 

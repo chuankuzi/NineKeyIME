@@ -214,8 +214,20 @@ public partial class KeyboardWindow
             + (_isEditRowExpanded ? _editRowHeight : 0);
     }
 
+    /// <summary>
+    /// 窗口高公式（**唯一真相**，抽成纯函数以便单测锁住"扩高行必须计入"）：
+    /// (设计高 + 宏行 + 编辑行) × scale。⚠ 2026-10-04 前 `SetModeScale` 漏乘扩高行 ⇒ 缩放手柄/夹取一触发就裁内容。
+    /// </summary>
+    internal static double WindowHeightFor(
+        double designHeight, double scale, bool macroBarExpanded, bool editRowExpanded, double macroBarHeight, double editRowHeight) =>
+        (designHeight
+         + (macroBarExpanded ? macroBarHeight : 0)
+         + (editRowExpanded ? editRowHeight : 0)) * scale;
+
     /// <summary>展开态窗口高度 = 容器设计高 × scale。窗口与容器永远同步，谁改都得成对改。</summary>
-    private double ExpandedWindowHeight() => ExpandedDesignHeight() * _currentScale;
+    private double ExpandedWindowHeight() =>
+        WindowHeightFor(GetDesignSize(_layoutMode).height, _currentScale,
+            _isMacroBarExpanded, _isEditRowExpanded, MacroBarHeight, _editRowHeight);
 
     private void ApplyModeScale()
     {
@@ -456,13 +468,17 @@ public partial class KeyboardWindow
         _currentScale = s;
         SetScaleFor(_layoutMode, s, isManual: true, GetWindowWorkArea(this));
 
-        var (designW, designH) = GetDesignSize(_layoutMode);
+        var (designW, _) = GetDesignSize(_layoutMode);
         RootBorder.Width = designW;
-        RootBorder.Height = designH;
+        // ⚠ 坑（2026-10-04 修）：这里原来写 designH —— 与 ApplyModeScale / ExpandFromStrip 的 ExpandedDesignHeight()
+        // 形成"窗口高双口径"。只要宏键行或 26 键编辑行处于展开态，经**缩放手柄拖动 / 双击复位 / 夹取**触发本方法，
+        // 窗口高就被压回非展开值 ⇒ 多出来的那一行被裁/被压（"边缘吸附会切割显示"的真凶在这里，不在吸附本身）。
+        // 唯一真相仍是 ExpandedDesignHeight()/ExpandedWindowHeight()：窗口高与容器高成对，且必须含扩高。
+        RootBorder.Height = ExpandedDesignHeight();
         RootBorder.RenderTransform = new ScaleTransform(s, s);
 
         var newW = designW * s;
-        var newH = designH * s;
+        var newH = ExpandedWindowHeight();   // = WindowHeightFor(...) 含扩高行；上一行已把 _currentScale 置为 s
 
         // ⚠ 坑：从非 SE 角缩放时，必须同步移动 Left/Top 保持对边不动，否则窗口会飘。
         switch (keepOpposite)
