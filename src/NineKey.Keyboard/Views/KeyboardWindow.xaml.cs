@@ -705,7 +705,7 @@ public partial class KeyboardWindow : Window
 
         btn.Click += (_, _) =>
         {
-            // §letter-pin：组合切换走候选栏引导项（PinyinGuide），字母片点击仅激活音节重锚定。
+            // §letter-pin：组合切换走"键盘上方浮条"的引导项（PinyinGuide），字母片点击仅激活音节重锚定。
             _controller.SetActiveSyllableIndex(syllableIndex);
             if (ReferenceEquals(Mouse.Captured, btn))
             {

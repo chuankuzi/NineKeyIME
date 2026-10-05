@@ -223,7 +223,8 @@ public sealed class KeyController
     public int TotalCount => _candidates.Count;
 
     /// <summary>是否有可上屏候选（排除拼音引导项）：空格上屏与标点顶屏的判定依据。</summary>
-    public bool HasRealCandidate => _candidates.Any(c => c.Source != CandidateSource.PinyinGuide);
+    /// <summary>是否有可上屏候选（批 2026-10-05 起候选页不含 PinyinGuide，故等价于"有词"）。</summary>
+    public bool HasRealCandidate => _candidates.Count > 0;
 
     /// <summary>数字键输入。</summary>
     public void AppendDigit(char digit)
@@ -515,7 +516,8 @@ public sealed class KeyController
 
         if (_candidates.Count > 0)
         {
-            var firstReal = _candidates.FirstOrDefault(c => c.Source != CandidateSource.PinyinGuide);
+            // 批 2026-10-05：候选页已不含 PinyinGuide（引导项走 PinyinGuides 给浮条），原先的过滤不再需要。
+            var firstReal = _candidates.FirstOrDefault();
             if (firstReal is not null)
             {
                 CommitCandidate(firstReal);

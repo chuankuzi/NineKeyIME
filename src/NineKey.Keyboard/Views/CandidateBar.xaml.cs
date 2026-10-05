@@ -112,12 +112,8 @@ public partial class CandidateBar : UserControl
             btn.ToolTip = "简拼匹配";
         }
 
-        if (!isHistory && candidate.Source == CandidateSource.PinyinGuide)
-        {
-            btn.ToolTip = candidate.Pinyin is null ? "撤销拼音锁定，显示全部候选" : "点选此拼音组合，收窄候选";
-            btn.Foreground = System.Windows.Media.Brushes.DodgerBlue;
-            btn.FontWeight = FontWeights.Bold;
-        }
+        // 批 2026-10-05：PinyinGuide（拼音组合引导项）已从候选行剥离到"键盘上方浮条"，
+        // 候选行不会再出现该来源，原先的着色/提示分支随之删除（死代码按纪律清掉）。
 
         // 批7 长按：按住 500ms 弹小菜单（删除/置顶/取消）；位移超容差或抬手即取消。
         AttachGesture(btn);   // 滑动与长按共用同一控制器（按钮 CaptureMouse 时也能收到 Move/Up）

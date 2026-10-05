@@ -213,6 +213,13 @@ public class KeyButton : Control
         ResetPressState();
         if (!inBounds)
         {
+            // 批 2026-10-05（冻结区 A 方案：**只加观测，判定一行未改**，用户点名批准）：
+            // "滑出即取消"是有意的防误触语义，但它**静默**——按下有高亮、抬手没结果，最易被感知成"这次没呼出/少打一个字"。
+            // 这里记下越界量（DIP），Deck 复现一次即可判定"1 键呼不出"是否由手指在键框外抬起造成，以及容差该取多大。
+            var dx = pos.X < 0 ? pos.X : (pos.X > ActualWidth ? pos.X - ActualWidth : 0);
+            var dy = pos.Y < 0 ? pos.Y : (pos.Y > ActualHeight ? pos.Y - ActualHeight : 0);
+            FileLogger.Info($"key-drop[out-of-bounds]: key={Digit} pos=({pos.X:F1},{pos.Y:F1}) " +
+                $"keyRect=(0,0,{ActualWidth:F1},{ActualHeight:F1}) overshoot=({dx:F1},{dy:F1})");
             return;
         }
 
@@ -327,6 +334,10 @@ public class KeyButton : Control
         _touchActive = false;
         _lastTouchUp = now;
         _touchFilter.RecordTouchUp(now, new TouchPoint2D(pos.X, pos.Y));
+
+        // 批 2026-10-05（冻结区 A 方案：只加观测，判定未改）：捕获丢失时**只复位不提交**（必要，否则会误提交），
+        // 但它静默——`pressPending=true` 就是"按下去却没有结果"的现场（第三条静默丢弃路径）。
+        FileLogger.Info($"key-drop[lost-capture]: key={Digit} pos=({pos.X:F1},{pos.Y:F1}) pressPending={_pressPending}");
         ResetPressState();
     }
 
@@ -341,7 +352,16 @@ public class KeyButton : Control
     private bool TryAcceptPress()
     {
         var now = Environment.TickCount64;
-        var accepted = CrossKeySuppressor.TryAccept(now, this, out _);
+        var accepted = CrossKeySuppressor.TryAccept(now, this, out var reason);
+        if (!accepted)
+        {
+            // 批 2026-10-05（冻结区 A 方案：只加观测，判定未改）：时间窗抑制会**静默**吃掉这次按下——
+            // 同键 100ms（防触屏+鼠标提升双发）/ 跨键 50ms（防幽灵触点）。连点同一颗键太快也会命中同键窗，
+            // 这正是"1 键无法每次呼出"的第二大嫌疑，日志带原因 + 与上次按键的间隔（ms）+ 累计抑制数。
+            FileLogger.Info($"key-drop[suppress]: key={Digit} reason={reason} " +
+                $"gap={now - CrossKeySuppressor.LastPressTime}ms total={CrossKeySuppressor.SuppressedCount}");
+        }
+
         return accepted;
     }
 

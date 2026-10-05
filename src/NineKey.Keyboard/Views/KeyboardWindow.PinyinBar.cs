@@ -1,7 +1,7 @@
 // 本文件职责：键盘上方"拼音浮条"（批 2026-10-05）——展示当前查询的拼音组合引导项，点击=锁定/撤销该组合。
 // 数据流位置：KeyController.PinyinGuides → 浮条 ItemsControl；浮条点击 → CommitCandidate(PinyinGuide) → SelectPinyinCombo。
 // ⚠ 坑 1：引导项原先混在候选行里，**占掉 PageSize 的一格**（把词挤掉一个）——分离成独立浮条后，
-//          候选行只放词（+句子位），"预选框出现字母挤压字词"从结构上消失；候选栏里那段 PinyinGuide 着色分支随之失效（保留无害）。
+//          候选行只放词（+句子位），"预选框出现字母挤压字词"从结构上消失；候选栏那段 PinyinGuide 着色分支已随之删除。
 // ⚠ 坑 2：浮条是**独立 HWND**，必须自己断言置顶（SWP_NOACTIVATE，不抢焦点），否则多键盘/其他置顶窗会盖住它。
 // ⚠ 坑 3：浮条不得进焦点链（W5）：Popup 与按钮一律 Focusable=false。
 // ⚠ 坑 4：Popup 不会随宿主隐藏而隐藏——必须挂在 IsVisibleChanged 上，窗口一收（托盘/贴条）浮条同步收起。
