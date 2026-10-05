@@ -12,34 +12,35 @@ using NineKey.Keyboard.Views;
 namespace NineKey.Host;
 
 // 本文件职责：NineKey 宿主启动器：单实例锁、词库加载、引擎装配、主窗口运行。
-// 数据流位置：exe 启动 → Program.Main → LexiconLoader / QueryEngine / KeyboardWindow → WPF 消息循环。
+// 数据流位置：exe 启动 → Program.Main → SingleInstanceGuard / LexiconLoader / QueryEngine / KeyboardWindow → WPF 消息循环。
 // ⚠ 坑 1：InvariantGlobalization 关闭后 'en-us' 文化表被剥离，必须显式固定 zh-CN，否则 WPF 绑定异常。
-// ⚠ 坑 2：单实例 Mutex 只在同用户会话内生效，多用户各自可启动一个实例。
+// ⚠ 坑 2：单实例的判定/交接/唤醒全在 SingleInstanceGuard（批 2026-10-05 重写：原实现有提权交接竞态、
+//          跨完整性崩溃、失败分支全静默三处洞）。
 // ⚠ 坑 3：找不到词库时直接弹 MessageBox 并退出，不能继续运行（否则引擎查询空索引）。
 // 相关规格：§2.1、§2.3、§13.5、§W5。
 
 /// <summary>装配：单实例锁 → 词库加载 → 引擎 → 主窗口。</summary>
 public static class Program
 {
-    private const string MutexName = @"Local\NineKeyIME.SingleInstance";
-
     /// <summary>
     /// 程序入口：设置中文环境、确保单实例、加载词库与用户词典、装配引擎并启动主窗口。
     /// </summary>
     /// <returns>进程退出码；0 表示正常，1 表示词库缺失。</returns>
     [STAThread]
-    public static int Main()
+    public static int Main(string[] args)
     {
         // ⚠ 坑：InvariantGlobalization 已关闭；显式固定中文环境，避免 WPF 绑定回退到被剥离的 'en-us' 文化表。
         var zhCn = new CultureInfo("zh-CN");
         CultureInfo.CurrentCulture = zhCn;
         CultureInfo.CurrentUICulture = zhCn;
 
-        // ⚠ 坑：Mutex 名称带 Local\ 前缀，只隔离当前会话；提权/非提权进程共享同一前缀。
-        using var mutex = new Mutex(initiallyOwned: true, MutexName, out bool createdNew);
-        if (!createdNew)
+        // 单实例：--takeover 由提权重启路径传入（旧实例仍在持锁，必须等它释放再接管，否则"两个都没了"）。
+        // 非属主时**唤醒已有实例**再退出——第二次启动不该像什么都没发生（批 2026-10-05 修）。
+        var takeover = args.Any(a => string.Equals(a, "--takeover", StringComparison.OrdinalIgnoreCase));
+        using var singleInstance = SingleInstanceGuard.Acquire(takeover);
+        if (!singleInstance.IsOwner)
         {
-            // 已有一个实例在跑：直接退出（托盘/热键属于那个实例）
+            _ = SingleInstanceGuard.TryActivateExisting();
             return 0;
         }
 

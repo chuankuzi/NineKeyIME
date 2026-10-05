@@ -62,6 +62,11 @@ public static class SystemSettingsService
         new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
 
     /// <summary>§0.3：以管理员身份重启自身（UAC 确认一次），由调用方随后关闭本进程。</summary>
+    /// <remarks>
+    /// ⚠ 坑（批 2026-10-05 修）：必须带 <c>--takeover</c>。旧进程此刻仍持单实例锁，新进程若按普通路径启动
+    /// 会看到 createdNew=false 直接退出 ⇒ 用户点"以管理员运行"后**两个都没了**。带 --takeover 后新进程会
+    /// 等旧进程退出（锁转 abandoned）再接管，交接不再靠竞态。
+    /// </remarks>
     public static bool RestartElevated()
     {
         try
@@ -69,6 +74,7 @@ public static class SystemSettingsService
             _ = Process.Start(new ProcessStartInfo
             {
                 FileName = Environment.ProcessPath!,
+                Arguments = "--takeover",
                 Verb = "runas",
                 UseShellExecute = true,
             });

@@ -44,6 +44,10 @@ public partial class KeyboardWindow : Window
     private readonly VisibilityPolicy _vis = new();
     private readonly DispatcherTimer _flashTimer = new() { Interval = TimeSpan.FromMilliseconds(1500) };
     private readonly DispatcherTimer _fgTracker = new() { Interval = TimeSpan.FromMilliseconds(500) };
+
+    /// <summary>批 2026-10-05：另一实例发来的"唤醒我"消息 id（同会话内 RegisterWindowMessage 同 id）。</summary>
+    private static readonly int ShowExistingMessage =
+        unchecked((int)NativeMethods.RegisterWindowMessageW(SingleInstanceGuard.ShowExistingMessageName));
     private readonly DispatcherTimer _selectionTracker = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private nint _lastExternalForeground;
     private DateTime _elevatedNoticeAt = DateTime.MinValue;
@@ -479,6 +483,20 @@ public partial class KeyboardWindow : Window
 
     private nint WndProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
     {
+        // 批 2026-10-05：另一个实例启动时要求我们现身（第二次双击 exe 不该"什么都没发生"）。
+        // 只显示 + 重断言置顶，不抢焦点（W5）。
+        if (ShowExistingMessage != 0 && msg == ShowExistingMessage)
+        {
+            FileLogger.Info("single-instance: show requested by another launch → show + reassert topmost");
+            Dispatcher.BeginInvoke(() =>
+            {
+                ApplyVis(_vis.Show());
+                ReassertTopmost("show-existing");
+            });
+            handled = true;
+            return nint.Zero;
+        }
+
         // ⚠ 坑：WM_INPUT 在窗口隐藏时仍能收到全局触控按下，需在 editable 控件上方才自动弹出。
         if (msg == NativeMethods.WmInput && !IsVisible)
         {

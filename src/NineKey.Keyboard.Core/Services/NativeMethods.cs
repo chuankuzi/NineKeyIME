@@ -32,6 +32,18 @@ public static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
+    // ---- 单实例守卫用（批 2026-10-05）：查找/唤醒已有实例 ----
+    // ⚠ 坑：RegisterWindowMessage 在同一会话里对同一字符串返回同一 id，两个进程各自注册即可互通。
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern uint RegisterWindowMessageW(string lpString);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern nint FindWindowW(string? lpClassName, string? lpWindowName);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool PostMessageW(nint hWnd, uint msg, nint wParam, nint lParam);
+
     // ---- 鼠标激活控制（§W5 / M8-6：NOACTIVATE 窗口被点击时仍须收到鼠标消息）----
     public const int WmMouseActivate = 0x0021;
     public const nint MaActivate = 1;
