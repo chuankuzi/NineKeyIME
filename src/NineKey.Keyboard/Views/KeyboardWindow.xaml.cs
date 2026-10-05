@@ -170,6 +170,10 @@ public partial class KeyboardWindow : Window
         Bar.PageNext += () => _controller.NextPage();
         Bar.PagePrevious += () => _controller.PreviousPage();
         _controller.StateChanged += RefreshUi;
+
+        // 批 2026-10-05：拼音组合引导项从候选行剥离 → 键盘上方浮条（先装配，再订阅刷新）。
+        BuildPinyinBar();
+        _controller.StateChanged += RefreshPinyinBar;
         RefreshUi();
 
         // 闪现计时（R8：透明度走刷色 alpha，闪现 = 临时拉满 1.5 秒）

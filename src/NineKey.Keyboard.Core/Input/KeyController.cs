@@ -36,6 +36,12 @@ public sealed class KeyController
     private IReadOnlyList<Candidate> _candidates = [];
     private int _pageIndex;
 
+    /// <summary>§letter-pin：拼音组合引导项（**不进候选行**，由壳层"键盘上方浮条"展示；点击=锁定/撤销该组合）。</summary>
+    private IReadOnlyList<Candidate> _pinyinGuides = [];
+
+    /// <summary>当前查询的拼音组合引导项（只读；空 = 无组合可切换，浮条应收起）。</summary>
+    public IReadOnlyList<Candidate> PinyinGuides => _pinyinGuides;
+
     /// <summary>连续上屏运行缓冲（批11）：标点/清空/停顿三触发结算成句。</summary>
     private readonly System.Text.StringBuilder _runBuffer = new();
 
@@ -626,6 +632,7 @@ public sealed class KeyController
         if (_buffer.IsEmpty)
         {
             _candidates = [];
+            _pinyinGuides = [];
             _topPinyin = null;
             _pinnedLetters.Clear();
             return;
@@ -637,7 +644,11 @@ public sealed class KeyController
             : _engine.Query(queryInput);
         var startOffset = _buffer.Letters.Length - queryInput.Length;
         _candidates = ApplyPinFilter(result.Candidates, startOffset, queryInput.Length);
-        _candidates = PrependPinyinCombos(_candidates, queryInput.Length);
+
+        // ⚠ 坑（批 2026-10-05 修）：拼音组合引导项原来被 Prepend 进 _candidates，**占掉 PageSize 的一格**，
+        // 于是"预选框出现字母会挤压原本预选字词"。现在它走独立列表 PinyinGuides，交给壳层的"键盘上方浮条"展示，
+        // 候选行只放词（+ 句子位）。点击语义不变（点击=锁定/撤销该组合，见 CommitCandidate 的 PinyinGuide 分支）。
+        _pinyinGuides = BuildPinyinCombos(_candidates, queryInput.Length);
         _topPinyin = _candidates.FirstOrDefault(c => c.Pinyin is not null && c.Pinyin.Length == queryInput.Length)?.Pinyin
             ?? (_candidates.Count > 0 ? result.TopPinyin : null);
     }
@@ -766,8 +777,8 @@ public sealed class KeyController
             return relevant.All(kv => cand.Pinyin[kv.Key - startOffset] == kv.Value);
         }).ToList();
     }
-    /// <summary>§letter-pin：把查询串的全部全拼组合（候选拼音去重，按词频序）前置为引导项；存在锁定时首项为"全部"（点击=撤销锁定）。</summary>
-    private IReadOnlyList<Candidate> PrependPinyinCombos(IReadOnlyList<Candidate> candidates, int queryLen)
+    /// <summary>§letter-pin：把查询串的全部全拼组合（候选拼音去重，按词频序）构造成引导项；存在锁定时首项为"全部"（点击=撤销锁定）。</summary>
+    private IReadOnlyList<Candidate> BuildPinyinCombos(IReadOnlyList<Candidate> candidates, int queryLen)
     {
         var combos = candidates
             .Where(c => c.Pinyin is not null && c.Pinyin.Length == queryLen)
@@ -776,15 +787,17 @@ public sealed class KeyController
             .ToList();
         if (combos.Count == 0)
         {
-            return candidates;
+            return [];
         }
+
         var guides = new List<Candidate>();
         if (_pinnedLetters.Count > 0)
         {
             guides.Add(new Candidate("全部", CandidateSource.PinyinGuide, 0, null));
         }
+
         guides.AddRange(combos.Select(p => new Candidate(p, CandidateSource.PinyinGuide, 0, p)));
-        return guides.Concat(candidates).ToList();
+        return guides;
     }
     /// <summary>§letter-pin：点选拼音组合。null=撤销全部锁定；否则把查询区间全列锁定为该组合（严格过滤生效）。</summary>
     public void SelectPinyinCombo(string? pinyin)
