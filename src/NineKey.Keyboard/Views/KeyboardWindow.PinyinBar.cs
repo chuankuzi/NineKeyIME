@@ -20,6 +20,9 @@ public partial class KeyboardWindow
     private Popup? _pinyinBar;
     private System.Windows.Controls.ItemsControl? _pinyinBarItems;
 
+    /// <summary>已挂上 MA_NOACTIVATE 钩子的浮条 HWND（HWND 若被重建必须重挂）。</summary>
+    private nint _pinyinBarHookedHwnd;
+
     /// <summary>构造期装配浮条（与 1 键选框同风格：挂进根 Grid 只为进入逻辑树，不占布局）。</summary>
     private void BuildPinyinBar()
     {
@@ -47,6 +50,13 @@ public partial class KeyboardWindow
             AllowsTransparency = true,
             Focusable = false,     // W5：不进焦点链
             Child = border,
+        };
+
+        // 独立 HWND 同样必须"不抢焦点"（与 1 键选框共用同一套硬化）：否则点它会顶掉前台窗口。
+        _pinyinBar.Opened += (_, _) =>
+        {
+            MakePopupNonActivating(_pinyinBar, "pinyin-bar", ref _pinyinBarHookedHwnd);
+            AssertOwnedPopupTopmost(_pinyinBar, "pinyin-bar");
         };
 
         if (Content is System.Windows.Controls.Grid root)
@@ -95,28 +105,6 @@ public partial class KeyboardWindow
         }
     }
 
-    /// <summary>浮条独立 HWND：断言置顶，但一律 SWP_NOACTIVATE（不抢焦点）。</summary>
-    private void AssertPinyinBarTopmost()
-    {
-        try
-        {
-            if (_pinyinBar?.Child is not FrameworkElement child)
-            {
-                return;
-            }
-
-            var hwnd = (PresentationSource.FromVisual(child) as HwndSource)?.Handle ?? 0;
-            if (hwnd == 0)
-            {
-                return;
-            }
-
-            _ = NativeMethods.SetWindowPos(hwnd, NativeMethods.HwndTopmost, 0, 0, 0, 0,
-                NativeMethods.SwpNoMove | NativeMethods.SwpNoSize | NativeMethods.SwpNoActivate);
-        }
-        catch (Exception ex)
-        {
-            FileLogger.Error("pinyin-bar: assert topmost failed", ex);
-        }
-    }
+    /// <summary>浮条独立 HWND：断言置顶（与 1 键选框共用同一实现，一律 SWP_NOACTIVATE，不抢焦点）。</summary>
+    private void AssertPinyinBarTopmost() => AssertOwnedPopupTopmost(_pinyinBar, "pinyin-bar");
 }

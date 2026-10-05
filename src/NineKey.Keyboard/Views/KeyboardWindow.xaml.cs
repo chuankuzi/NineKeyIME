@@ -121,7 +121,18 @@ public partial class KeyboardWindow : Window
             }
 
             ReassertTopmost("mouse-down");
+
+            // 批 2026-10-05：1 键选框改 StaysOpen=true（不再抢捕获），"点选框外即关"由这里接管。
+            CloseKey1PopupOnOutsideInput(e.OriginalSource);
         });
+
+        // ⚠ 触摸必须单独接：WPF 触屏提升为鼠标事件有延迟，选框的"点外即关"要在触摸按下当刻生效。
+        // （Touch 没有 AddPreviewTouchDownHandler 静态助手，走 UIElement.PreviewTouchDownEvent 隧道事件。）
+        AddHandler(
+            UIElement.PreviewTouchDownEvent,
+            new EventHandler<System.Windows.Input.TouchEventArgs>(
+                (_, e) => CloseKey1PopupOnOutsideInput(e.OriginalSource)),
+            handledEventsToo: true);
 
         // 按键接线：字母布局取自 KeyLayout（唯一真源，§13.9 方向映射）
         var keyButtons = new[] { Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9, Key0 };

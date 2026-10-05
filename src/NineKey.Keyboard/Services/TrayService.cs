@@ -261,6 +261,9 @@ public sealed class TrayService : IDisposable
         _touchKbItem = AddToggle(miscMenu.DropDown, "屏蔽系统触摸键盘", on => TouchKbGuardToggled?.Invoke(on));
         _ = miscMenu.DropDownItems.Add("编辑器白名单...", null, (_, _) => EditEditorWhitelistRequested?.Invoke());
         _ = miscMenu.DropDownItems.Add("以管理员运行（UAC 重启）", null, (_, _) => AdminRunRequested?.Invoke());
+
+        // 批 2026-10-05：用户反馈"日志找不到"——一键打开目录，省掉手拼 %LocalAppData% 路径。
+        _ = miscMenu.DropDownItems.Add("打开日志目录", null, (_, _) => OpenLogFolder());
         _ = menu.Items.Add(miscMenu);
 
         _ = menu.Items.Add(new ToolStripSeparator());
@@ -275,6 +278,28 @@ public sealed class TrayService : IDisposable
         };
         menu.Closed += (_, _) => MenuClosed?.Invoke();
         _icon.ContextMenuStrip = menu;
+    }
+
+    /// <summary>
+    /// 打开日志目录（与 FileLogger 同一真源，避免手拼路径漂移）。
+    /// 批 2026-10-05 加：用户反馈"日志找不到"——排查 Deck 问题时第一件事就是拿这个文件，一键省事。
+    /// </summary>
+    private static void OpenLogFolder()
+    {
+        try
+        {
+            var dir = FileLogger.LogDirectory;
+            _ = System.IO.Directory.CreateDirectory(dir);
+            _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = dir,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            FileLogger.Error("tray: open log folder failed", ex);
+        }
     }
 
     private static TrackBar MakeTrack() =>

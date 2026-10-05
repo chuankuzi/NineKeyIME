@@ -37,6 +37,9 @@ public partial class KeyboardWindow
     private Popup? _key1Popup;
     private System.Windows.Controls.Border? _key1PopupBorder;
 
+    /// <summary>已挂上 MA_NOACTIVATE 钩子的弹层 HWND（HWND 若被重建必须重挂）。</summary>
+    private nint _key1PopupHookedHwnd;
+
     /// <summary>最近使用符号的存储上限（超出淘汰最旧）。</summary>
     private const int RecentSymbolsMax = 8;
 
@@ -100,10 +103,33 @@ public partial class KeyboardWindow
         {
             PlacementTarget = Key1,
             Placement = PlacementMode.Top,
-            StaysOpen = false, // 点选框外即关（外点与贴边翻转都交给 Popup 自身，不手写）
+            // ⚠ 坑（2026-10-05 修，Deck 实测「1 键仍未修复」的元凶）：原来是 StaysOpen=false，
+            // 而 StaysOpen=false 的 Popup 一旦打开就**持有鼠标/触摸捕获**——选项框外的那一次点按会被它吃掉
+            // （只把弹窗关掉，ShowKey1SymbolPopup 根本没被调用），表现就像"这次没呼出"、外观仍像 Toggle。
+            // 触摸设备尤其明显（合成鼠标点击测不出 ⇒ 本机 10/10、Deck 仍坏）。
+            // 改为 StaysOpen=true：不抢捕获，点按必定送达按键；「点选框外即关」由本类自己实现
+            // （CloseKey1PopupOnOutsideInput ← 窗口级 PreviewMouseDown/TouchDown）。
+            StaysOpen = true,
             AllowsTransparency = true,
             Focusable = false, // W5：新增控件一律不入焦点链
             Child = _key1PopupBorder,
+        };
+
+        _key1Popup.Opened += (_, _) =>
+        {
+            // 弹层是独立 HWND：① 必须先变成"不抢焦点"，② 再断言置顶，③ 最后记下真实矩形与样式位。
+            MakePopupNonActivating(_key1Popup, "key1-popup", ref _key1PopupHookedHwnd);
+            AssertOwnedPopupTopmost(_key1Popup, "key1-popup");
+            LogKey1PopupRect("open");
+        };
+
+        // 窗口收起（托盘/贴条）时弹层不会自动跟走，必须显式收掉。
+        IsVisibleChanged += (_, _) =>
+        {
+            if (!IsVisible)
+            {
+                CloseKey1SymbolPopup("window-hidden");
+            }
         };
 
         // 挂进根 Grid 只为进入逻辑树；Popup 自身不占布局。
@@ -111,6 +137,9 @@ public partial class KeyboardWindow
         {
             root.Children.Add(_key1Popup);
         }
+
+        // 启动即自证：弹窗对象确实建成了（否则 ShowKey1SymbolPopup 会在第一行静默 return，日志里什么都看不到）。
+        FileLogger.Info($"key1-popup[built] symbols={Key1PopupSymbols.Length} staysOpen={_key1Popup.StaysOpen}");
     }
 
     /// <summary>
@@ -126,21 +155,152 @@ public partial class KeyboardWindow
             return;
         }
 
+        // ⚠ 探针（2026-10-05）：这一行是"1 键的那次点按有没有送达"的唯一判据——
+        // Deck 日志里若"点了 1 但完全没有 key1-popup[show-called]"，就是点按在送达按键前被丢/被吃。
+        FileLogger.Info($"key1-popup[show-called] alreadyOpen={_key1Popup.IsOpen}");
         _key1Popup.IsOpen = true;
         RefreshRecentSymbolRow();
     }
 
-    private void CloseKey1SymbolPopup()
+    private void CloseKey1SymbolPopup(string reason = "explicit")
     {
         if (_key1Popup is not null && _key1Popup.IsOpen)
         {
             _key1Popup.IsOpen = false;
+            FileLogger.Info($"key1-popup[close] reason={reason}");
+        }
+    }
+
+    /// <summary>
+    /// 点选框外（窗口内非 Key1 的输入）即收掉选框。
+    /// ⚠ StaysOpen=true 之后 Popup 不再自己处理"外点即关"，这条必须自己管，否则选框会赖着不走。
+    /// </summary>
+    private void CloseKey1PopupOnOutsideInput(object? source)
+    {
+        if (_key1Popup is null || !_key1Popup.IsOpen)
+        {
+            return;
+        }
+
+        var node = source as DependencyObject;
+
+        // ⚠ 坑（2026-10-05，我自己引入过的回归）：Popup 的视觉树挂在**宿主窗口树**上（_key1Popup 就加在根 Grid 里），
+        // 所以弹层内部的按下也会冒泡到窗口级预览处理器。若无脑按"不是 Key1 就关"，弹层内点击会被误判为"点外"，
+        // 先被关掉 ⇒ 符号按钮的 Click 再也发不出来 ⇒ 实感"符号上不了屏"。故"弹层内"必须显式排除。
+        if (IsWithinPopup(_key1Popup, node) || IsWithinKey1(node))
+        {
+            return;
+        }
+
+        CloseKey1SymbolPopup("outside-input");
+    }
+
+    /// <summary>source 是否位于该弹层之内（沿树向上找弹层的根内容元素）。</summary>
+    private static bool IsWithinPopup(Popup? popup, DependencyObject? source)
+    {
+        if (popup?.Child is not DependencyObject root)
+        {
+            return false;
+        }
+
+        var node = source;
+        while (node is not null)
+        {
+            if (ReferenceEquals(node, root))
+            {
+                return true;
+            }
+
+            node = node is Visual or System.Windows.Media.Media3D.Visual3D
+                ? VisualTreeHelper.GetParent(node)
+                : LogicalTreeHelper.GetParent(node);
+        }
+
+        return false;
+    }
+
+    /// <summary>source 是否位于 Key1 之内（命中元素常是 Key1 的子元素，必须沿树向上找）。</summary>
+    private bool IsWithinKey1(DependencyObject? source)
+    {
+        var node = source;
+        while (node is not null)
+        {
+            if (ReferenceEquals(node, Key1))
+            {
+                return true;
+            }
+
+            node = node is Visual or System.Windows.Media.Media3D.Visual3D
+                ? VisualTreeHelper.GetParent(node)
+                : LogicalTreeHelper.GetParent(node);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 弹层独立 HWND 的置顶断言（1 键选框与拼音浮条共用）：只动 z 序，
+    /// 一律 SWP_NOACTIVATE —— 重断言全程不抢焦点（W5）。
+    /// </summary>
+    private static void AssertOwnedPopupTopmost(Popup? popup, string tag)    {
+        try
+        {
+            if (popup?.Child is not FrameworkElement child)
+            {
+                return;
+            }
+
+            var hwnd = (PresentationSource.FromVisual(child) as HwndSource)?.Handle ?? 0;
+            if (hwnd == 0)
+            {
+                return;
+            }
+
+            _ = NativeMethods.SetWindowPos(hwnd, NativeMethods.HwndTopmost, 0, 0, 0, 0,
+                NativeMethods.SwpNoMove | NativeMethods.SwpNoSize | NativeMethods.SwpNoActivate);
+        }
+        catch (Exception ex)
+        {
+            FileLogger.Error($"popup[{tag}]: assert topmost failed", ex);
+        }
+    }
+
+    /// <summary>
+    /// 记下选框独立 HWND 的真实矩形与置顶位。
+    /// ⚠ Deck 上"呼出了却看不见/位置跑到屏外"这类只能靠它自证——有 rect 与 topmost 就能一眼定性。
+    /// </summary>
+    private void LogKey1PopupRect(string phase)
+    {
+        try
+        {
+            if (_key1Popup?.Child is not FrameworkElement child)
+            {
+                return;
+            }
+
+            var hwnd = (PresentationSource.FromVisual(child) as HwndSource)?.Handle ?? 0;
+            if (hwnd == 0 || !NativeMethods.GetWindowRect(hwnd, out var rect))
+            {
+                return;
+            }
+
+            var topmost = (NativeMethods.GetWindowLongPtr(hwnd, NativeMethods.GwlExStyle).ToInt64()
+                & NativeMethods.WsExTopmost.ToInt64()) != 0;
+            var noActivate = (NativeMethods.GetWindowLongPtr(hwnd, NativeMethods.GwlExStyle).ToInt64()
+                & NativeMethods.WsExNoActivate.ToInt64()) != 0;
+            FileLogger.Info($"key1-popup[{phase}] rect=({rect.Left},{rect.Top})-({rect.Right},{rect.Bottom}) " +
+                $"topmost={topmost} noactivate={noActivate}");
+        }
+        catch (Exception ex)
+        {
+            FileLogger.Error("key1-popup: rect log failed", ex);
         }
     }
 
     private void OnKey1SymbolClick(string symbol)
     {
         PlayKeyClick();
+        LogForegroundBeforeInject(symbol);
         // 标点顶屏（手机输入法规则）：组串非空先把首选候选落屏，再上屏符号。
         if (!_controller.IsEmpty)
         {
@@ -163,6 +323,82 @@ public partial class KeyboardWindow
         if (!_controller.IsEmpty)
         {
             _controller.CommitDirect(_controller.DigitInput);
+        }
+    }
+
+    /// <summary>
+    /// 把弹层的独立 HWND 也做成"不抢焦点"（与主窗口同一套）：OR `WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW`，
+    /// 并挂 `WM_MOUSEACTIVATE → MA_NOACTIVATE`。
+    /// ⚠ 坑（2026-10-05，Deck 实测「符号偶尔弹得出来却上不了屏」）：Popup 是**独立 HWND**，主窗口的 NOACTIVATE
+    /// 管不到它。点选框一旦让它激活，前台窗口就变成我们自己 ⇒ `SendInput` 打不到目标程序 ⇒ 符号被静默丢弃；
+    /// 同时激活冲突还会吃掉鼠标消息（表现为点了符号没反应）。两者都靠这里堵死。
+    /// </summary>
+    private static void MakePopupNonActivating(Popup? popup, string tag, ref nint hookedHwnd)
+    {
+        try
+        {
+            if (popup?.Child is not FrameworkElement child)
+            {
+                return;
+            }
+
+            if (PresentationSource.FromVisual(child) is not HwndSource source || source.Handle == 0)
+            {
+                return;
+            }
+
+            var hwnd = source.Handle;
+            var style = NativeMethods.GetWindowLongPtr(hwnd, NativeMethods.GwlExStyle).ToInt64();
+            var wanted = style
+                | NativeMethods.WsExNoActivate.ToInt64()
+                | NativeMethods.WsExToolWindow.ToInt64();
+            if (wanted != style)
+            {
+                _ = NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GwlExStyle, new nint(wanted));
+                FileLogger.Info($"popup[{tag}]: exstyle 0x{style:X} → 0x{wanted:X}（NOACTIVATE|TOOLWINDOW）");
+            }
+
+            // ⚠ 钩子只在 HWND 变化时挂一次；重复挂会在同一次点击里被调用多次（幂等但浪费）。
+            if (hookedHwnd == hwnd)
+            {
+                return;
+            }
+
+            hookedHwnd = hwnd;
+            source.AddHook((nint _, int msg, nint _, nint _, ref bool handled) =>
+            {
+                if (msg == NativeMethods.WmMouseActivate)
+                {
+                    handled = true;
+                    return NativeMethods.MaNoActivate;
+                }
+
+                return nint.Zero;
+            });
+        }
+        catch (Exception ex)
+        {
+            FileLogger.Error($"popup[{tag}]: make non-activating failed", ex);
+        }
+    }
+
+    /// <summary>
+    /// 上屏前记下前台窗口。⚠ Deck 上"符号上不了屏"只有两种可能：前台被我们自己的弹层抢了（pid 会是本进程），
+    /// 或者按下根本没送达弹窗按钮（日志里连 symbol-inject 都没有）。这一行就是判据。
+    /// </summary>
+    private static void LogForegroundBeforeInject(string symbol)
+    {
+        try
+        {
+            var hwnd = NativeMethods.GetForegroundWindow();
+            var cls = new System.Text.StringBuilder(256);
+            _ = NativeMethods.GetClassName(hwnd, cls, cls.Capacity);
+            _ = NativeMethods.GetWindowThreadProcessId(hwnd, out var pid);
+            FileLogger.Info($"key1-popup[symbol-inject] symbol={symbol} fg=0x{hwnd.ToInt64():X} pid={pid} class={cls}");
+        }
+        catch (Exception ex)
+        {
+            FileLogger.Error("key1-popup: foreground log failed", ex);
         }
     }
 

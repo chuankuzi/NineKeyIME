@@ -42,6 +42,15 @@ public partial class KeyboardWindow
         var ok = NativeMethods.SetWindowPos(hwnd, NativeMethods.HwndTopmost, 0, 0, 0, 0,
             NativeMethods.SwpNoMove | NativeMethods.SwpNoSize | NativeMethods.SwpNoActivate);
 
+        // ⚠ 坑（2026-10-05 根因，Deck 实测「1 键偶尔弹出 + 符号上不了屏」）：弹层与键盘**都是 TOPMOST**，
+        // 谁最后 SetWindowPos 谁在上面。本方法每次鼠标按下 + **每 500ms 轮询**都会把键盘顶到置顶组最上，
+        // 于是我们自己的弹层被自己的键盘盖住：选框刚弹出时可见（<500ms），随后被盖 ⇒ 实感"偶尔弹出"；
+        // 那一击还会落到键盘上（弹层被 outside-input 关掉）⇒ 实感"符号上不了屏"。
+        // 拼音浮条之所以一直是好的，就因为它在键盘**上沿之外、从不重叠**。
+        // 修法：键盘断言完，**紧跟**把已打开的弹层再断言一次（顺序不能反）。
+        AssertOwnedPopupTopmost(_key1Popup, "key1-popup");
+        AssertOwnedPopupTopmost(_pinyinBar, "pinyin-bar");
+
         // ⚠ 坑：本方法每次鼠标按下都会走一趟，**绝不能无脑记 INFO**（纪律：不加高频日志，一次点击一行会把
         // FileLogger 刷爆）。只在"真的丢过置顶位"或"调用失败"时留痕——这两行才是 Deck 定位要的证据。
         if (!before || !ok)

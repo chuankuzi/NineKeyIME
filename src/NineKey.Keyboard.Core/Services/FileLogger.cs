@@ -18,6 +18,9 @@ public static class FileLogger
     private static readonly object Gate = new();
     private static string? _path;
 
+    /// <summary>日志所在目录（唯一真源：托盘"打开日志目录"等入口必须走这里，免得手拼路径漂移）。</summary>
+    public static string LogDirectory => System.IO.Path.GetDirectoryName(PathForFile)!;
+
     private static string PathForFile
     {
         get
